@@ -2,7 +2,8 @@
 
 Формат хэша: `scrypt$<n>$<r>$<p>$<salt base64>$<hash base64>` — параметры хранятся вместе с
 хэшем, поэтому их можно поменять, не ломая старые пароли. Хэширование — CPU-bound (~16 МБ памяти
-и десятки миллисекунд), поэтому асинхронные обёртки уводят его в поток.
+и десятки миллисекунд), поэтому асинхронные обёртки уводят его в отдельный пул из
+MAX_PARALLEL_HASHES потоков.
 """
 
 import asyncio
@@ -10,6 +11,7 @@ import base64
 import hashlib
 import hmac
 import secrets
+from concurrent.futures import ThreadPoolExecutor
 
 SCHEME = "scrypt"
 # n * r * 128 байт = 16 МБ на хэш: укладывается в mem_limit контейнера
@@ -18,6 +20,10 @@ R = 8
 P = 1
 SALT_BYTES = 16
 KEY_BYTES = 32
+# Хэши считаются параллельно (scrypt отпускает GIL), поэтому без предела всплеск SignIn/SignUp
+# умножает 16 МБ на размер пула потоков по умолчанию и выходит за mem_limit 128m
+MAX_PARALLEL_HASHES = 2
+_EXECUTOR = ThreadPoolExecutor(max_workers=MAX_PARALLEL_HASHES, thread_name_prefix="scrypt")
 
 
 def _scrypt(password: str, salt: bytes, n: int, r: int, p: int) -> bytes:
@@ -47,8 +53,9 @@ def verify_password(password: str, password_hash: str) -> bool:
 
 
 async def hash_password_async(password: str) -> str:
-    return await asyncio.to_thread(hash_password, password)
+    return await asyncio.get_running_loop().run_in_executor(_EXECUTOR, hash_password, password)
 
 
 async def verify_password_async(password: str, password_hash: str) -> bool:
-    return await asyncio.to_thread(verify_password, password, password_hash)
+    loop = asyncio.get_running_loop()
+    return await loop.run_in_executor(_EXECUTOR, verify_password, password, password_hash)

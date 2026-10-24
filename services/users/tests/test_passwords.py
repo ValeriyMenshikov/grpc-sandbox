@@ -1,4 +1,11 @@
+import asyncio
+import threading
+import time
+
+import pytest
+from user_service import passwords
 from user_service.passwords import (
+    MAX_PARALLEL_HASHES,
     hash_password,
     hash_password_async,
     verify_password,
@@ -27,3 +34,25 @@ def test_malformed_hash_does_not_verify() -> None:
 async def test_async_wrappers() -> None:
     password_hash = await hash_password_async("s3cret-pass")
     assert await verify_password_async("s3cret-pass", password_hash)
+
+
+async def test_parallel_hashes_are_limited(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Всплеск запросов не считает больше MAX_PARALLEL_HASHES хэшей одновременно (память)."""
+    running = 0
+    peak = 0
+    lock = threading.Lock()
+
+    def slow_hash(password: str) -> str:
+        nonlocal running, peak
+        with lock:
+            running += 1
+            peak = max(peak, running)
+        time.sleep(0.02)
+        with lock:
+            running -= 1
+        return password
+
+    monkeypatch.setattr(passwords, "hash_password", slow_hash)
+    await asyncio.gather(*(hash_password_async(str(i)) for i in range(MAX_PARALLEL_HASHES * 4)))
+
+    assert peak == MAX_PARALLEL_HASHES

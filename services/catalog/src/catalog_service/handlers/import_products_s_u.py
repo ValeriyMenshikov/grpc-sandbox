@@ -21,6 +21,8 @@ MODES: dict[int, ImportMode] = {
 MAX_OFFER_ID_LENGTH = 64
 MAX_NAME_LENGTH = 255
 MAX_CATEGORY_LENGTH = 64
+# 10 млрд ₽: цена × MAX_CART_QUANTITY order-service остаётся далеко в пределах int64 (Money.units)
+MAX_PRICE_KOPECKS = 10**12
 
 
 def parse_header(message: catalog_pb2.ImportProductsRequest) -> ImportMode:
@@ -65,6 +67,8 @@ def validate_row(row: catalog_pb2.ImportRow) -> tuple[ImportItem, list[FieldViol
     ]
     if item.price_kopecks <= 0:
         violations.append(FieldViolation("price_kopecks", "must be positive"))
+    elif item.price_kopecks > MAX_PRICE_KOPECKS:
+        violations.append(FieldViolation("price_kopecks", f"must be at most {MAX_PRICE_KOPECKS}"))
     if item.stock < 0:
         violations.append(FieldViolation("stock", "must not be negative"))
     return item, violations

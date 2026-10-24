@@ -101,7 +101,7 @@
 | `ImportProducts` | client stream | seller | Первое сообщение — `header{mode}` (`UPSERT` / `CREATE_ONLY`), дальше `row{offer_id, name, category, price_kopecks, stock}`. Ответ — отчёт `created`, `updated`, `failed`, `errors[]{row_number, field, description}`. Плохие строки попадают в `errors`, остальные пишутся одной транзакцией. В `CREATE_ONLY` существующий `offer_id` — ошибка строки. | нет заголовка, `IMPORT_MODE_UNSPECIFIED`, второй заголовок → `INVALID_ARGUMENT`; строк больше `IMPORT_MAX_ROWS` (10 000) → `RESOURCE_EXHAUSTED` + `QuotaFailure(subject="seller:<id>")`, ничего не пишется |
 | `ExportProducts` | server stream | seller | Товары текущего продавца по одному (`updated_at, product_id`), `updated_since` — включительно. Trailing `x-items-count`. | — |
 
-Проверки строки импорта: `offer_id`, `name`, `category` не пустые и не длиннее 64/255/64 символов; `price_kopecks > 0`; `stock >= 0`. Номер строки — с 1, заголовок не считается.
+Проверки строки импорта: `offer_id`, `name`, `category` не пустые и не длиннее 64/255/64 символов; `0 < price_kopecks <= 10¹²` (10 млрд ₽); `stock >= 0`. Номер строки — с 1, заголовок не считается.
 
 ## catalog.v1.StockService (50052, внутренний)
 

@@ -9,7 +9,7 @@ CREATE TABLE IF NOT EXISTS catalog.products (
     offer_id      text        NOT NULL,
     name          text        NOT NULL,
     category      text        NOT NULL,
-    price_kopecks bigint      NOT NULL CHECK (price_kopecks > 0),
+    price_kopecks bigint      NOT NULL CHECK (price_kopecks BETWEEN 1 AND 1000000000000),
     created_at    timestamptz NOT NULL DEFAULT now(),
     updated_at    timestamptz NOT NULL DEFAULT now(),
     UNIQUE (seller_id, offer_id)

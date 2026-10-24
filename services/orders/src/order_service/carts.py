@@ -4,7 +4,8 @@ from nuke_di import Client
 from stand_core.clients import Redis
 
 CART_KEY_PREFIX = "cart:"
-# Предел количества одной позиции: сумма корзины в копейках остаётся в int64 (Money.units)
+# Предел количества одной позиции: вместе с пределом цены в catalog (10**12 копеек) сумма
+# корзины в копейках остаётся в int64 (Money.units)
 MAX_CART_QUANTITY = 10_000
 
 # HINCRBY, если новое количество не превысит ARGV[2]; иначе -1 и корзина не меняется

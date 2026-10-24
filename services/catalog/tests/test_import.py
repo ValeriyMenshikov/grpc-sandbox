@@ -3,7 +3,7 @@ from unittest.mock import Mock
 
 import pytest
 from catalog.v1 import catalog_pb2
-from catalog_service.handlers.import_products_s_u import import_products
+from catalog_service.handlers.import_products_s_u import MAX_PRICE_KOPECKS, import_products
 from catalog_service.models import ImportMode
 from catalog_service.settings import CatalogSettings
 from stand_core.grpc import CurrentUser, InvalidArgument, ResourceExhausted
@@ -79,15 +79,17 @@ async def test_bad_rows_are_reported_without_failing_import(
         row("", "", price_kopecks=0),
         row("OF-3", stock=-1),
         row("OF-4", category="x" * 65),
+        row("OF-5", price_kopecks=MAX_PRICE_KOPECKS + 1),
     )
 
-    assert (report.created, report.updated, report.failed) == (1, 0, 3)
+    assert (report.created, report.updated, report.failed) == (1, 0, 4)
     assert [(e.row_number, e.field) for e in report.errors] == [
         (2, "offer_id"),
         (2, "name"),
         (2, "price_kopecks"),
         (3, "stock"),
         (4, "category"),
+        (5, "price_kopecks"),
     ]
     assert report.errors[0].description == "must not be empty"
 
