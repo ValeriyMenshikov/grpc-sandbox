@@ -336,6 +336,8 @@ dev = [
     { name = "pytest-cov" },
     { name = "ruff" },
     { name = "types-grpcio" },
+    { name = "types-grpcio-health-checking" },
+    { name = "types-grpcio-reflection" },
     { name = "types-grpcio-status" },
     { name = "types-protobuf" },
 ]
@@ -358,6 +360,8 @@ dev = [
     { name = "pytest-cov", specifier = ">=6.0" },
     { name = "ruff", specifier = ">=0.8" },
     { name = "types-grpcio", specifier = ">=1.0" },
+    { name = "types-grpcio-health-checking", specifier = ">=1.0.0.20261021" },
+    { name = "types-grpcio-reflection", specifier = ">=1.0.0.20260508" },
     { name = "types-grpcio-status", specifier = ">=1.0.0.20260408" },
     { name = "types-protobuf", specifier = ">=5.28" },
 ]
@@ -1093,6 +1097,32 @@ source = { registry = "https://pypi.org/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/55/0f/3b4c34b33000cdab613b76738e3752db0d6bb1b4725c0f4886e01d9d757b/types_grpcio-1.84.0.20261021.tar.gz", hash = "sha256:d06d24b31843adaf34656654a7536bd70b40425880bb6162219eb5b1a86220ae", size = 16063, upload-time = "2026-10-21T06:41:53.342Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/d4/0b/5ebb22b7de7e9e2bca58fc20df619ca8cbf1280f0eda18231d1165ba6def/types_grpcio-1.84.0.20261021-py3-none-any.whl", hash = "sha256:0cd5f897d7485c448c4819597cb05fd17afac4620c0feaee6f7c5d0ee96a60f1", size = 16077, upload-time = "2026-10-21T06:41:52.348Z" },
+]
+
+[[package]]
+name = "types-grpcio-health-checking"
+version = "1.0.0.20261021"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "types-grpcio" },
+    { name = "types-protobuf" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/34/09/45e818a73ba3b674648744dce85bf2e4507a990bb07966dfca14a2712a4c/types_grpcio_health_checking-1.0.0.20261021.tar.gz", hash = "sha256:155d53811ca7810c2caaa63bf8769324753ac8f01b397dd8cf95d08bda4c134a", size = 8627, upload-time = "2026-10-21T06:42:11.465Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/19/de/eca76e380f7e3b93bd7032847e4e9d43904e604b5782c83be9cf733be962/types_grpcio_health_checking-1.0.0.20261021-py3-none-any.whl", hash = "sha256:bac5319aa52e2012f745dba9c125f77326e60db14d60e15cff268dc8759387f5", size = 9828, upload-time = "2026-10-21T06:42:10.574Z" },
+]
+
+[[package]]
+name = "types-grpcio-reflection"
+version = "1.0.0.20260508"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "types-grpcio" },
+    { name = "types-protobuf" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/bc/e9/110a5eea2fbce2bfff98c0e3159acdf5dd1757415d643dcb5651c07c5f25/types_grpcio_reflection-1.0.0.20260508.tar.gz", hash = "sha256:c346c7149093982f322f4374264800bb4f6ea6eed95e9e79427f1fef036bfaaf", size = 9162, upload-time = "2026-05-08T04:51:14.946Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/c5/56/d8d952b168fda49d8582dba893956b93668bce87e090075b110caeadc431/types_grpcio_reflection-1.0.0.20260508-py3-none-any.whl", hash = "sha256:1f6eb27e9a6b19614f8bb2e7db409f3039099fb5f250a0f3c340fe973139ae0e", size = 11037, upload-time = "2026-05-08T04:51:14.12Z" },
 ]
 
 [[package]]

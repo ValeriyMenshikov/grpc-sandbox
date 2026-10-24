@@ -18,6 +18,8 @@ dev = [
     "pytest-cov>=6.0",
     "ruff>=0.8",
     "types-grpcio>=1.0",
+    "types-grpcio-health-checking>=1.0.0.20261021",
+    "types-grpcio-reflection>=1.0.0.20260508",
     "types-grpcio-status>=1.0.0.20260408",
     "types-protobuf>=5.28",
 ]

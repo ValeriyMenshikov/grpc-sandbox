@@ -90,14 +90,14 @@
 - Create: `packages/stand_core/src/stand_core/grpc/di.py` (inject_handlers, resolve_interceptors)
 - Create: `packages/stand_core/src/stand_core/grpc/healthcheck.py` (скрипт healthcheck для compose)
 - Create: `packages/stand_core/tests/...` (тестовый proto или реальные дескрипторы из gen)
-- [ ] rpc: проверка сигнатуры (request и context первыми, есть type hints, есть аннотация возврата), иначе ValueError; тип вызова по AsyncIterator в hints; функция возвращается без изменений
-- [ ] grpc_server: keepalive-опции из Nuke, группировка по package.service, METHOD_MAP, add_generic_rpc_handlers, порт из GRPC_PORT
-- [ ] сверка с proto до start(): метод существует, флаги стриминга и классы сообщений совпадают; методы без хэндлера — warning при старте и UNIMPLEMENTED
-- [ ] reflection по зарегистрированным сервисам, health SERVING по каждому сервису, stop(grace) и stop(None) в finally
-- [ ] inject_handlers / resolve_interceptors по гайду nuke-di; main.py-шаблон с @worker последним в модуле
-- [ ] скрипт healthcheck на Python через стандартный health service
-- [ ] тесты: неверные сигнатуры падают при декорировании; расхождения с дескриптором (тип стрима, классы сообщений, несуществующий метод) падают до старта; поднятый in-process сервер отвечает на unary и все виды стримов, health и reflection работают
-- [ ] make check && make test — зелёные
+- [x] rpc: проверка сигнатуры (request и context первыми, есть type hints, есть аннотация возврата), иначе ValueError; тип вызова по AsyncIterator в hints; функция возвращается без изменений
+- [x] grpc_server: keepalive-опции из Nuke, группировка по package.service, METHOD_MAP, add_generic_rpc_handlers, порт из GRPC_PORT
+- [x] сверка с proto до start(): метод существует, флаги стриминга и классы сообщений совпадают; методы без хэндлера — warning при старте и UNIMPLEMENTED
+- [x] reflection по зарегистрированным сервисам, health SERVING по каждому сервису, stop(grace) и stop(None) в finally
+- [x] inject_handlers / resolve_interceptors по гайду nuke-di; main.py-шаблон с @worker последним в модуле
+- [x] скрипт healthcheck на Python через стандартный health service
+- [x] тесты: неверные сигнатуры падают при декорировании; расхождения с дескриптором (тип стрима, классы сообщений, несуществующий метод) падают до старта; поднятый in-process сервер отвечает на unary и все виды стримов, health и reflection работают
+- [x] make check && make test — зелёные
 
 ### Task 5: stand_core — интерцепторы и базовый клиент к соседям
 
