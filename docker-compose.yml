@@ -4,6 +4,35 @@ name: grpc-stand
 x-restart: &restart
   restart: unless-stopped
 
+# Один образ на все Python-сервисы (docker/Dockerfile); сервис выбирается командой
+x-python-service: &python-service
+  <<: *restart
+  image: grpc-stand-python:${PYTHON_VERSION:-3.12}
+  build:
+    context: .
+    dockerfile: docker/Dockerfile
+    args:
+      PYTHON_VERSION: ${PYTHON_VERSION:-3.12}
+  mem_limit: 128m
+
+# Переменные, общие для всех Python-сервисов; значения по умолчанию — как в .env.example
+x-common-env: &common-env
+  LOG_LEVEL: ${LOG_LEVEL:-INFO}
+  STAND_API_KEY: ${STAND_API_KEY:-stand-secret-key}
+  SHUTDOWN_GRACE_SECONDS: ${SHUTDOWN_GRACE_SECONDS:-5}
+  CONNECT_TIMEOUT_SECONDS: ${CONNECT_TIMEOUT_SECONDS:-10}
+  GRPC_DEFAULT_DEADLINE_SECONDS: ${GRPC_DEFAULT_DEADLINE_SECONDS:-5}
+  POSTGRES_DSN: ${POSTGRES_DSN:-postgresql://stand:stand@postgres:5432/stand}
+  REDIS_URL: ${REDIS_URL:-redis://redis:6379/0}
+
+# Healthcheck gRPC-сервиса через стандартный health service (адрес — localhost:$GRPC_PORT)
+x-grpc-healthcheck: &grpc-healthcheck
+  test: ["CMD", "python", "-m", "stand_core.grpc.healthcheck"]
+  interval: 5s
+  timeout: 3s
+  retries: 10
+  start_period: 10s
+
 services:
   postgres:
     <<: *restart
@@ -35,6 +64,24 @@ services:
       interval: 3s
       timeout: 3s
       retries: 20
+
+  catalog:
+    <<: *python-service
+    command: ["python", "-m", "catalog_service.main"]
+    environment:
+      <<: *common-env
+      GRPC_PORT: 50052
+      IMPORT_MAX_ROWS: ${IMPORT_MAX_ROWS:-10000}
+      STOCK_RESERVE_DELAY_MS: ${STOCK_RESERVE_DELAY_MS:-0}
+    ports:
+      - "${CATALOG_PORT:-50052}:50052"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      # Redis — для сессий пользователей в AuthInterceptor
+      redis:
+        condition: service_healthy
+    healthcheck: *grpc-healthcheck
 
 volumes:
   pgdata:

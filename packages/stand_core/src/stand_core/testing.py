@@ -1,4 +1,8 @@
-"""google.rpc.Status из ошибки grpc.aio (rpc_status.from_call типизирован только под grpc.Call)."""
+"""Хелперы для тестов сервисов стенда.
+
+`rich_status` — google.rpc.Status из ошибки grpc.aio: `rpc_status.from_call` типизирован только
+под `grpc.Call`.
+"""
 
 import grpc
 from google.rpc import status_pb2

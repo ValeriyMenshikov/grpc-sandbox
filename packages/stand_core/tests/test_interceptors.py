@@ -31,10 +31,9 @@ from stand_core.grpc.interceptors import (
 from stand_core.grpc.rpc import MethodAnnotation, MethodSignature, annotate
 from stand_core.grpc.server import RunningServer, grpc_server
 from stand_core.settings import Settings
+from stand_core.testing import rich_status
 from structlog.testing import capture_logs
 from support.v1 import support_pb2
-
-from .rich_status import rich_status
 
 API_KEY = "test-key"
 BUYER_TOKEN = "buyer-token"

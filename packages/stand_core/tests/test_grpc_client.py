@@ -24,8 +24,7 @@ from stand_core.grpc.interceptors import (
 from stand_core.grpc.rpc import MethodSignature, annotate
 from stand_core.grpc.server import RunningServer, grpc_server
 from stand_core.settings import Settings
-
-from .rich_status import rich_status
+from stand_core.testing import rich_status
 
 API_KEY = "client-key"
 # grpc округляет timeout вверх при передаче по сети: сосед видит чуть больше отправленного

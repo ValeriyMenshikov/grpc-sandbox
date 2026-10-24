@@ -123,14 +123,14 @@
 - Create: `services/catalog/src/catalog_service/handlers/{__init__.py,get_product_u_u.py,search_products_u_u.py,import_products_s_u.py,export_products_u_s.py,v2_get_product_u_u.py,v2_search_products_u_u.py}`
 - Create: `services/catalog/tests/...`
 - Modify: `docker-compose.yml`, `.env.example`
-- [ ] schema.sql (схема catalog: товары, остатки, резервы) и сиды: 20–30 товаров продавца-сида в 3–4 категориях
-- [ ] GetProduct, SearchProducts (текст, категория, диапазон цены, сортировка, page_token; невалидный токен → INVALID_ARGUMENT)
-- [ ] ImportProducts: заголовок обязателен первым (иначе INVALID_ARGUMENT), режимы UPSERT/CREATE_ONLY, ошибки по строкам без падения импорта, лимит IMPORT_MAX_ROWS → RESOURCE_EXHAUSTED + QuotaFailure
-- [ ] ExportProducts: товары текущего продавца по одному, фильтр updated_since, проверка context.done()
-- [ ] catalog.v2 GetProduct/SearchProducts на том же порту (Money, обязательный region_id)
-- [ ] main.py по шаблону @worker; блок в compose (healthcheck, mem_limit, depends_on healthy)
-- [ ] тесты: unit-тесты хэндлеров с замоканным репозиторием (включая плохие строки импорта, лимит, стрим без заголовка, невалидный page_token), тест wiring'а дерева клиентов
-- [ ] make check && make test — зелёные
+- [x] schema.sql (схема catalog: товары, остатки, резервы) и сиды: 20–30 товаров продавца-сида в 3–4 категориях
+- [x] GetProduct, SearchProducts (текст, категория, диапазон цены, сортировка, page_token; невалидный токен → INVALID_ARGUMENT)
+- [x] ImportProducts: заголовок обязателен первым (иначе INVALID_ARGUMENT), режимы UPSERT/CREATE_ONLY, ошибки по строкам без падения импорта, лимит IMPORT_MAX_ROWS → RESOURCE_EXHAUSTED + QuotaFailure
+- [x] ExportProducts: товары текущего продавца по одному, фильтр updated_since, проверка context.done()
+- [x] catalog.v2 GetProduct/SearchProducts на том же порту (Money, обязательный region_id)
+- [x] main.py по шаблону @worker; блок в compose (healthcheck, mem_limit, depends_on healthy)
+- [x] тесты: unit-тесты хэндлеров с замоканным репозиторием (включая плохие строки импорта, лимит, стрим без заголовка, невалидный page_token), тест wiring'а дерева клиентов
+- [x] make check && make test — зелёные
 
 ### Task 7: catalog-service — StockService
 
