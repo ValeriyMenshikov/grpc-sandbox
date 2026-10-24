@@ -92,6 +92,15 @@ _STOCKS = """
 SELECT product_id, quantity FROM catalog.stocks WHERE product_id = ANY($1::text[])
 """
 
+# Импорт заранее блокирует уже существующие строки своих offer_id в том же порядке product_id,
+# что и резерв: иначе UPSERT в порядке фида и резерв ловят deadlock на паре товаров
+_LOCK_SELLER_OFFERS = """
+SELECT product_id FROM catalog.products
+WHERE seller_id = $1 AND offer_id = ANY($2::text[])
+ORDER BY product_id
+FOR UPDATE
+"""
+
 _RESERVED = """
 SELECT product_id, sum(quantity)::bigint AS reserved
 FROM catalog.reservations
@@ -163,6 +172,15 @@ class CatalogRepository(Client):
         query = _UPSERT_PRODUCT if mode is ImportMode.UPSERT else _CREATE_PRODUCT
         outcomes: list[ImportOutcome] = []
         async with self._postgres.pool.acquire() as connection, connection.transaction():
+            # Импорты одного продавца — по очереди: новые offer_id в разном порядке в двух
+            # параллельных фидах иначе ловят deadlock на уникальном индексе
+            await connection.execute(
+                "SELECT pg_advisory_xact_lock(hashtext('import:' || $1))", seller_id
+            )
+            if mode is ImportMode.UPSERT:
+                await connection.execute(
+                    _LOCK_SELLER_OFFERS, seller_id, [item.offer_id for item in items]
+                )
             for item in items:
                 record = await connection.fetchrow(
                     query, seller_id, item.offer_id, item.name, item.category, item.price_kopecks

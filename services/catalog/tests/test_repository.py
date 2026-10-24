@@ -215,3 +215,20 @@ async def test_release_is_idempotent(repository: CatalogRepository) -> None:
     assert await repository.release_stock("o1") is True
     assert await repository.release_stock("o1") is False
     assert await repository.get_available(a) == 3
+
+
+async def test_concurrent_import_and_reserve_do_not_deadlock(
+    repository: CatalogRepository,
+) -> None:
+    ids = await _products(repository, 1000, 1000)
+    # Фид — в обратном порядке product_id, резерв блокирует в прямом
+    feed = [item(f"S{ids.index(pid)}", stock=1000) for pid in sorted(ids, reverse=True)]
+
+    for round_ in range(30):
+        await asyncio.gather(
+            repository.import_products(SELLER, ImportMode.UPSERT, feed),
+            repository.reserve_stock(f"o{round_}", [StockItem(pid, 1) for pid in ids]),
+            repository.import_products(SELLER, ImportMode.UPSERT, list(reversed(feed))),
+        )
+
+    assert [await repository.get_available(pid) for pid in ids] == [970, 970]
