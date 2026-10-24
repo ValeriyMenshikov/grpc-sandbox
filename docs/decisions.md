@@ -37,3 +37,13 @@
 - `gen/` — отдельный участник workspace `stand-protos` (`gen/pyproject.toml`), верхнеуровневые пакеты совпадают с каталогами protos: `common`, `users`, `catalog`, `orders`, `support`. Импорт: `from catalog.v1 import catalog_pb2`. `make gen` пересоздаёт только эти каталоги, `gen/pyproject.toml` не трогает, и докладывает `__init__.py` и `py.typed`.
 - `.pyi` генерирует mypy-protobuf (`--mypy_out`, `--mypy_grpc_out`), а не `--pyi_out` protoc: оба пишут в один и тот же `*_pb2.pyi`, а стабы mypy-protobuf полнее (типизированные enum, oneof, gRPC-стабы для grpc.aio). Для mypy в dev-группе `types-grpcio` и `types-protobuf`.
 - Нижние границы `grpcio` и `protobuf` в `stand-protos` равны версиям генератора: сгенерированный код проверяет версию рантайма при импорте.
+
+## 7. stand_core: настройки, логи, ошибки, клиенты
+
+- `Settings` наследует `BaseSettings` и `nuke_di.Client` одновременно и объявляет `__init__(self) -> None`: иначе mypy синтезирует `__init__` из полей, и плагин nuke-di считает каждое поле зависимостью-клиентом. Подклассы настроек в сервисах делают так же. Конфликт pydantic-хуков `__get_pydantic_*_schema__` у двух баз снят явным переопределением со стандартным поведением pydantic. `.env` pydantic-settings не читает — переменные приходят из окружения (compose `env_file`).
+- Адреса (`POSTGRES_DSN`, `REDIS_URL`) не имеют значений по умолчанию и необязательны в `Settings`: сервис без Postgres/Redis не обязан их задавать. `Postgres` и `Redis` падают с понятной ошибкой в `connect()`, если адреса нет. `STAND_API_KEY` обязателен.
+- `Postgres.apply_schema(path)` выполняет `schema.sql` целиком; вызывает его `connect()` репозитория сервиса (репозиторий зависит от `Postgres` и подключается после него).
+- `Redis` работает с `decode_responses=True`: ключи и значения — `str`.
+- Маскировка в логах — по именам ключей (`password`, `*_token`, `authorization`, `x-api-key`, `code`, ...) на любой глубине, плюс `Bearer <token>` в строках. Ключ `code` маскируется всегда (это код подтверждения), поэтому статус вызова логируется под ключом `status`.
+- `build_status()` переводит доменное исключение в `grpc.Status` с `google.rpc.Status` в `grpc-status-details-bin`; у любого другого исключения — `INTERNAL` с текстом `Internal error`, без текста и стека исключения. `ERROR_DOMAIN` для `ErrorInfo` — `stand.local`. `DependencyUnavailable` — `ErrorInfo(reason="DEPENDENCY_UNAVAILABLE", metadata={"dependency": ...})`.
+- ruff: `RUF001`–`RUF003` выключены — докстринги и комментарии на русском. mypy: `googleapis-common-protos` поставляет `.pyi` без `py.typed`, для `google.rpc.*` включён `follow_untyped_imports`; стабы `asyncpg-stubs` и `types-grpcio-status` — в dev-группе.

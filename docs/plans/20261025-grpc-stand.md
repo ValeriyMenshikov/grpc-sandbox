@@ -73,13 +73,13 @@
 - Create: `packages/stand_core/src/stand_core/clients/postgres.py` (asyncpg pool, применение schema.sql)
 - Create: `packages/stand_core/src/stand_core/clients/redis.py`
 - Create: `packages/stand_core/tests/...`
-- [ ] Settings как nuke-di Client: читает env, без захардкоженных адресов
-- [ ] логирование structlog в JSON, функция маскировки паролей, токенов и кодов
-- [ ] иерархия исключений (InvalidArgument, NotFound, AlreadyExists, Unauthenticated, PermissionDenied, FailedPrecondition, ResourceExhausted, DependencyUnavailable) и функция сборки grpc Status с details через grpcio-status
-- [ ] contextvars: request_id, current_user (id, role)
-- [ ] Postgres(Client) и Redis(Client): I/O только в connect/disconnect, в __init__ только зависимости
-- [ ] тесты: маппинг каждого исключения в статус и тип details, маскировка в логах, чтение Settings из env
-- [ ] make check && make test — зелёные
+- [x] Settings как nuke-di Client: читает env, без захардкоженных адресов
+- [x] логирование structlog в JSON, функция маскировки паролей, токенов и кодов
+- [x] иерархия исключений (InvalidArgument, NotFound, AlreadyExists, Unauthenticated, PermissionDenied, FailedPrecondition, ResourceExhausted, DependencyUnavailable) и функция сборки grpc Status с details через grpcio-status
+- [x] contextvars: request_id, current_user (id, role)
+- [x] Postgres(Client) и Redis(Client): I/O только в connect/disconnect, в __init__ только зависимости
+- [x] тесты: маппинг каждого исключения в статус и тип details, маскировка в логах, чтение Settings из env
+- [x] make check && make test — зелёные
 
 ### Task 4: stand_core — декоратор rpc, grpc_server и связка с nuke-di
 
