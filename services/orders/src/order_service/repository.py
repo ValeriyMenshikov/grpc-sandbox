@@ -1,13 +1,21 @@
 """Репозиторий заказов поверх Postgres (схема `orders`, см. schema.sql)."""
 
 from collections.abc import Sequence
+from datetime import timedelta
 from pathlib import Path
 
 import asyncpg
 from nuke_di import Client
 from stand_core.clients import Postgres
 
-from order_service.models import CANCELLABLE_STATUSES, Order, OrderItem, OrderStatus
+from order_service.models import (
+    CANCELLABLE_STATUSES,
+    NEXT_STATUS,
+    Order,
+    OrderItem,
+    OrderStatus,
+    StatusChange,
+)
 
 SCHEMA_PATH = Path(__file__).with_name("schema.sql")
 
@@ -39,6 +47,18 @@ UPDATE orders.orders SET status = 'CANCELLED', updated_at = now()
 WHERE order_id = $1 AND status = ANY($2::text[])
 RETURNING {_ORDER_COLUMNS}
 """
+
+# Имитация доставки: на шаг вперёд — заказы, простоявшие в статусе не меньше шага. Время — часы
+# Postgres. Условие на статус и updated_at перепроверяется под блокировкой строки, поэтому
+# параллельная отмена или вторая реплика не продвинут заказ дважды
+_ADVANCE = (
+    "UPDATE orders.orders SET status = CASE status "
+    + " ".join(f"WHEN '{current}' THEN '{following}'" for current, following in NEXT_STATUS.items())
+    + """ END, updated_at = now()
+WHERE status = ANY($1::text[]) AND updated_at <= now() - $2::interval
+RETURNING order_id, status, updated_at
+"""
+)
 
 
 def _order(record: asyncpg.Record, items: Sequence[OrderItem]) -> Order:
@@ -105,6 +125,16 @@ class OrderRepository(Client):
         if record is None:
             return None
         return (await self._with_items([record]))[0]
+
+    async def advance_due(self, step: timedelta) -> list[StatusChange]:
+        """Продвинуть по доставке заказы, простоявшие в статусе `step`; отменённые не трогаются."""
+        records = await self._postgres.pool.fetch(
+            _ADVANCE, [status.value for status in NEXT_STATUS], step
+        )
+        return [
+            StatusChange(record["order_id"], OrderStatus(record["status"]), record["updated_at"])
+            for record in records
+        ]
 
     async def _with_items(self, records: Sequence[asyncpg.Record]) -> list[Order]:
         if not records:

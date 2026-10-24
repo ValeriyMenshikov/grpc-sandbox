@@ -11,6 +11,7 @@ from nuke_di import Dependencies
 from order_service.auth import AUTH_POLICIES
 from order_service.carts import Carts
 from order_service.catalog_client import CatalogClient
+from order_service.events import OrderEvents
 from order_service.idempotency import IdempotencyKeys
 from order_service.repository import OrderRepository
 from order_service.settings import OrderSettings
@@ -39,6 +40,7 @@ METHODS = [
     "GetOrder",
     "ListOrders",
     "RemoveCartItem",
+    "TrackOrder",
 ]
 
 
@@ -53,6 +55,7 @@ def test_main_builds_client_tree() -> None:
         "OrderRepository",
         "Carts",
         "IdempotencyKeys",
+        "OrderEvents",
         "StockClient",
         "CatalogClient",
         "Postgres",
@@ -81,6 +84,7 @@ def test_handlers_inject_clients() -> None:
         OrderRepository,
         Carts,
         IdempotencyKeys,
+        OrderEvents,
         StockClient,
         CatalogClient,
         Postgres,

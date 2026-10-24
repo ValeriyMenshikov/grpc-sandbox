@@ -1,14 +1,24 @@
 """Репозиторий, Redis-хранилища и клиенты к catalog в памяти для unit-тестов."""
 
-from collections.abc import Iterable, Mapping, Sequence
+import asyncio
+from collections.abc import AsyncIterator, Awaitable, Callable, Iterable, Mapping, Sequence
+from contextlib import asynccontextmanager
 from dataclasses import replace
 from datetime import UTC, datetime, timedelta
 
 from catalog.v1 import catalog_pb2
 from order_service.carts import Carts
 from order_service.catalog_client import CatalogClient
+from order_service.events import OrderEvents, Subscription
 from order_service.idempotency import IdempotencyKeys, IdempotencyRecord
-from order_service.models import CANCELLABLE_STATUSES, Order, OrderItem, OrderStatus
+from order_service.models import (
+    CANCELLABLE_STATUSES,
+    NEXT_STATUS,
+    Order,
+    OrderItem,
+    OrderStatus,
+    StatusChange,
+)
 from order_service.repository import OrderRepository
 from order_service.stock_client import StockClient
 from stand_core.grpc import FailedPrecondition, PreconditionViolation
@@ -68,6 +78,18 @@ class FakeRepository(OrderRepository):
         order = replace(order, status=OrderStatus.CANCELLED, updated_at=self.tick())
         self.orders[order_id] = order
         return order
+
+    async def advance_due(self, step: timedelta) -> list[StatusChange]:
+        """Каждый заказ в доставке — на шаг вперёд, без учёта `step` (его проверяет SQL-тест)."""
+        changes = []
+        for order in list(self.orders.values()):
+            following = NEXT_STATUS.get(order.status)
+            if following is None:
+                continue
+            order = replace(order, status=following, updated_at=self.tick())
+            self.orders[order.order_id] = order
+            changes.append(StatusChange(order.order_id, order.status, order.updated_at))
+        return changes
 
 
 class FakeCarts(Carts):
@@ -171,3 +193,43 @@ class FakeStock(StockClient):
 
     async def release_quietly(self, order_id: str) -> None:
         self.quietly_released.append(order_id)
+
+
+class FakeSubscription(Subscription):
+    def __init__(self, queue: "asyncio.Queue[StatusChange]") -> None:
+        self._queue = queue
+
+    async def next(self, wait_s: float) -> StatusChange | None:
+        try:
+            return await asyncio.wait_for(self._queue.get(), wait_s)
+        except TimeoutError:
+            return None
+
+
+class FakeEvents(OrderEvents):
+    """Redis pub/sub в памяти: у каждой подписки своя очередь."""
+
+    def __init__(self) -> None:
+        self.published: list[StatusChange] = []
+        self.subscribers: dict[str, list[asyncio.Queue[StatusChange]]] = {}
+        # Вызывается сразу после подписки — чтобы сменить статус между подпиской и чтением из БД
+        self.on_subscribe: Callable[[str], Awaitable[object]] | None = None
+        self.error: Exception | None = None
+
+    async def publish(self, change: StatusChange) -> None:
+        if self.error is not None:
+            raise self.error
+        self.published.append(change)
+        for queue in self.subscribers.get(change.order_id, []):
+            queue.put_nowait(change)
+
+    @asynccontextmanager
+    async def subscribe(self, order_id: str) -> AsyncIterator[Subscription]:
+        queue: asyncio.Queue[StatusChange] = asyncio.Queue()
+        self.subscribers.setdefault(order_id, []).append(queue)
+        try:
+            if self.on_subscribe is not None:
+                await self.on_subscribe(order_id)
+            yield FakeSubscription(queue)
+        finally:
+            self.subscribers[order_id].remove(queue)

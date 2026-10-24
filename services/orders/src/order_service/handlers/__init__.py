@@ -8,6 +8,7 @@ from order_service.handlers import (
     get_order_u_u,
     list_orders_u_u,
     remove_cart_item_u_u,
+    track_order_u_s,
 )
 
 __all__ = (
@@ -18,4 +19,5 @@ __all__ = (
     "get_order_u_u",
     "list_orders_u_u",
     "remove_cart_item_u_u",
+    "track_order_u_s",
 )

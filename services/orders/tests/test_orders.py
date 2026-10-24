@@ -14,7 +14,7 @@ from stand_core.grpc import (
     NotFound,
 )
 
-from .fakes import OTHER_ID, FakeRepository, FakeStock
+from .fakes import OTHER_ID, FakeEvents, FakeRepository, FakeStock
 
 pytestmark = pytest.mark.usefixtures("buyer")
 
@@ -106,28 +106,44 @@ async def test_list_validation(
 
 @pytest.mark.parametrize("status", [OrderStatus.CREATED, OrderStatus.PAID, OrderStatus.ASSEMBLING])
 async def test_cancel_before_courier_releases_stock(
-    context: Mock, repository: FakeRepository, stock: FakeStock, status: OrderStatus
+    context: Mock,
+    repository: FakeRepository,
+    stock: FakeStock,
+    events: FakeEvents,
+    status: OrderStatus,
 ) -> None:
     order = repository.add(status=status)
 
     response = await cancel_order(
-        orders_pb2.CancelOrderRequest(order_id=order.order_id), context, repository, stock
+        orders_pb2.CancelOrderRequest(order_id=order.order_id), context, repository, stock, events
     )
 
     assert response.order.status == orders_pb2.ORDER_STATUS_CANCELLED
     assert repository.orders[order.order_id].status is OrderStatus.CANCELLED
     assert stock.released == [order.order_id]
+    # TrackOrder узнаёт об отмене из Redis и закрывается
+    [published] = events.published
+    assert (published.order_id, published.status) == (order.order_id, OrderStatus.CANCELLED)
+    assert published.changed_at == repository.orders[order.order_id].updated_at
 
 
 @pytest.mark.parametrize("status", [OrderStatus.HANDED_TO_COURIER, OrderStatus.DELIVERED])
 async def test_cancel_after_courier_is_failed_precondition(
-    context: Mock, repository: FakeRepository, stock: FakeStock, status: OrderStatus
+    context: Mock,
+    repository: FakeRepository,
+    stock: FakeStock,
+    events: FakeEvents,
+    status: OrderStatus,
 ) -> None:
     order = repository.add(status=status)
 
     with pytest.raises(FailedPrecondition) as info:
         await cancel_order(
-            orders_pb2.CancelOrderRequest(order_id=order.order_id), context, repository, stock
+            orders_pb2.CancelOrderRequest(order_id=order.order_id),
+            context,
+            repository,
+            stock,
+            events,
         )
 
     [violation] = info.value.violations
@@ -138,31 +154,36 @@ async def test_cancel_after_courier_is_failed_precondition(
     assert status.value in violation.description
     assert repository.orders[order.order_id].status is status
     assert stock.released == []
+    assert events.published == []
 
 
 async def test_cancel_foreign_order_is_not_found(
-    context: Mock, repository: FakeRepository, stock: FakeStock
+    context: Mock, repository: FakeRepository, stock: FakeStock, events: FakeEvents
 ) -> None:
     order = repository.add(user_id=OTHER_ID)
 
     with pytest.raises(NotFound):
         await cancel_order(
-            orders_pb2.CancelOrderRequest(order_id=order.order_id), context, repository, stock
+            orders_pb2.CancelOrderRequest(order_id=order.order_id),
+            context,
+            repository,
+            stock,
+            events,
         )
     assert repository.orders[order.order_id].status is OrderStatus.CREATED
 
 
 async def test_repeat_cancel_finishes_release_after_catalog_outage(
-    context: Mock, repository: FakeRepository, stock: FakeStock
+    context: Mock, repository: FakeRepository, stock: FakeStock, events: FakeEvents
 ) -> None:
     order = repository.add()
     request = orders_pb2.CancelOrderRequest(order_id=order.order_id)
     stock.error = DependencyUnavailable("catalog")
     with pytest.raises(DependencyUnavailable):
-        await cancel_order(request, context, repository, stock)
+        await cancel_order(request, context, repository, stock, events)
     stock.error = None
 
-    response = await cancel_order(request, context, repository, stock)
+    response = await cancel_order(request, context, repository, stock, events)
 
     assert response.order.status == orders_pb2.ORDER_STATUS_CANCELLED
     assert stock.released == [order.order_id]

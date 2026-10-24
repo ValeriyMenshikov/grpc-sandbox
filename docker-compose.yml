@@ -110,12 +110,14 @@ services:
       GRPC_PORT: 50053
       CATALOG_ADDR: ${CATALOG_ADDR:-catalog:50052}
       IDEMPOTENCY_TTL_S: ${IDEMPOTENCY_TTL_S:-86400}
+      FULFILLMENT_STEP_MS: ${FULFILLMENT_STEP_MS:-2000}
     ports:
       - "${ORDERS_PORT:-50053}:50053"
     depends_on:
       postgres:
         condition: service_healthy
-      # Redis — сессии, корзины cart:{user_id} и ключи идемпотентности idem:{user_id}:{key}
+      # Redis — сессии, корзины cart:{user_id}, ключи идемпотентности idem:{user_id}:{key}
+      # и pub/sub смен статуса orders.status.{order_id}
       redis:
         condition: service_healthy
       # Только порядок старта: остановленный позже catalog даёт UNAVAILABLE у Checkout

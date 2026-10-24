@@ -7,6 +7,7 @@
 import os
 import uuid
 from collections.abc import AsyncIterator
+from datetime import timedelta
 
 import asyncpg
 import pytest
@@ -101,3 +102,47 @@ async def test_cancel_only_before_courier(repository: OrderRepository, postgres:
     assert await repository.cancel(order.order_id) is None
     assert await repository.cancel(handed.order_id) is None
     assert await repository.cancel("missing") is None
+
+
+async def test_advance_due_walks_delivery_and_skips_cancelled(
+    repository: OrderRepository, postgres: Postgres
+) -> None:
+    order = await create(repository)
+    cancelled = await create(repository)
+    await repository.cancel(cancelled.order_id)
+
+    not_yet = await repository.advance_due(timedelta(hours=1))
+    statuses = []
+    for _ in range(5):
+        statuses.append(
+            [
+                (change.order_id, change.status)
+                for change in await repository.advance_due(timedelta())
+            ]
+        )
+    found = await repository.get_order(order.order_id)
+
+    assert not_yet == []
+    assert statuses == [
+        [(order.order_id, OrderStatus.PAID)],
+        [(order.order_id, OrderStatus.ASSEMBLING)],
+        [(order.order_id, OrderStatus.HANDED_TO_COURIER)],
+        [(order.order_id, OrderStatus.DELIVERED)],
+        [],
+    ]
+    assert found is not None
+    assert found.status is OrderStatus.DELIVERED
+    assert found.updated_at > order.updated_at
+    still_cancelled = await repository.get_order(cancelled.order_id)
+    assert still_cancelled is not None
+    assert still_cancelled.status is OrderStatus.CANCELLED
+
+
+async def test_advance_due_returns_changed_at_as_stored(repository: OrderRepository) -> None:
+    order = await create(repository)
+
+    [change] = await repository.advance_due(timedelta())
+    found = await repository.get_order(order.order_id)
+
+    assert found is not None
+    assert change.changed_at == found.updated_at

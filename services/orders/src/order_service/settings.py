@@ -10,3 +10,5 @@ class OrderSettings(Settings):
 
     # Сколько живёт ключ идемпотентности Checkout idem:{user_id}:{key}
     idempotency_ttl_s: int = 86_400
+    # Шаг имитации доставки: столько заказ стоит в каждом статусе до DELIVERED
+    fulfillment_step_ms: int = 2000

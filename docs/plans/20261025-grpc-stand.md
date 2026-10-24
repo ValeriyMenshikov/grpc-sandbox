@@ -184,10 +184,10 @@
 - Create: `services/orders/src/order_service/fulfillment.py`
 - Create: `services/orders/src/order_service/handlers/track_order_u_s.py`
 - Modify: `services/orders/src/order_service/main.py`, `services/orders/tests/...`
-- [ ] фоновая задача внутри процесса: CREATED → PAID → ASSEMBLING → HANDED_TO_COURIER → DELIVERED с шагом FULFILLMENT_STEP_MS; каждая смена пишется в Postgres и публикуется в Redis orders.status.{order_id}; отменённые заказы не продвигаются
-- [ ] TrackOrder: сначала подписка, затем текущий статус из БД (событие не теряется), дальше изменения с changed_at; закрытие после DELIVERED/CANCELLED, x-items-count
-- [ ] тесты: последовательность статусов при маленьком шаге, TrackOrder отдаёт текущий статус первым и закрывается на финальном статусе (Redis pub/sub замокан или из compose)
-- [ ] make check && make test — зелёные
+- [x] фоновая задача внутри процесса: CREATED → PAID → ASSEMBLING → HANDED_TO_COURIER → DELIVERED с шагом FULFILLMENT_STEP_MS; каждая смена пишется в Postgres и публикуется в Redis orders.status.{order_id}; отменённые заказы не продвигаются
+- [x] TrackOrder: сначала подписка, затем текущий статус из БД (событие не теряется), дальше изменения с changed_at; закрытие после DELIVERED/CANCELLED, x-items-count
+- [x] тесты: последовательность статусов при маленьком шаге, TrackOrder отдаёт текущий статус первым и закрывается на финальном статусе (Redis pub/sub замокан или из compose)
+- [x] make check && make test — зелёные
 
 ### Task 11: support-service — Chat и GetChatHistory
 

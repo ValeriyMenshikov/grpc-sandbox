@@ -28,3 +28,8 @@ CREATE TABLE IF NOT EXISTS orders.order_items (
     price_kopecks bigint NOT NULL CHECK (price_kopecks >= 0),
     PRIMARY KEY (order_id, position)
 );
+
+-- Имитация доставки: заказы, которые ещё едут (финальные статусы в индекс не попадают)
+CREATE INDEX IF NOT EXISTS orders_in_fulfillment_idx
+    ON orders.orders (updated_at)
+    WHERE status IN ('CREATED', 'PAID', 'ASSEMBLING', 'HANDED_TO_COURIER');

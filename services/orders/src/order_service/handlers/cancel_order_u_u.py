@@ -3,8 +3,9 @@ from stand_core import Context, rpc
 from stand_core.grpc import FailedPrecondition, PreconditionViolation
 
 from order_service.convert import order_pb
+from order_service.events import OrderEvents
 from order_service.handlers.get_order_u_u import own_order
-from order_service.models import OrderStatus
+from order_service.models import OrderStatus, StatusChange
 from order_service.repository import OrderRepository
 from order_service.stock_client import StockClient
 
@@ -15,6 +16,7 @@ async def cancel_order(
     context: Context,
     repository: OrderRepository,
     stock: StockClient,
+    events: OrderEvents,
 ) -> orders_pb2.CancelOrderResponse:
     order = await own_order(repository, request.order_id)
     # Повторная отмена снова снимает резерв: так повтор после UNAVAILABLE от catalog доводит
@@ -35,5 +37,7 @@ async def cancel_order(
                 message="Order can be cancelled only before it is handed to courier",
             )
         order = cancelled
+        # TrackOrder закрывается на CANCELLED
+        await events.publish_quietly(StatusChange(order.order_id, order.status, order.updated_at))
     await stock.release(order.order_id)
     return orders_pb2.CancelOrderResponse(order=order_pb(order))

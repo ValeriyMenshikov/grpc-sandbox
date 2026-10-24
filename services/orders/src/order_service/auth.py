@@ -14,5 +14,6 @@ AUTH_POLICIES: dict[str, AuthPolicy] = {
         "GetOrder",
         "ListOrders",
         "CancelOrder",
+        "TrackOrder",
     )
 }

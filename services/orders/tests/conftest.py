@@ -9,6 +9,7 @@ from .fakes import (
     BUYER_ID,
     FakeCarts,
     FakeCatalog,
+    FakeEvents,
     FakeIdempotency,
     FakeRepository,
     FakeStock,
@@ -38,6 +39,11 @@ def carts() -> FakeCarts:
 @pytest.fixture
 def idempotency() -> FakeIdempotency:
     return FakeIdempotency()
+
+
+@pytest.fixture
+def events() -> FakeEvents:
+    return FakeEvents()
 
 
 @pytest.fixture

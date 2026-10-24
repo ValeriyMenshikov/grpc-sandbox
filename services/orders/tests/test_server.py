@@ -10,9 +10,12 @@ from nuke_di import Dependencies
 from order_service.auth import AUTH_POLICIES
 from order_service.carts import Carts
 from order_service.catalog_client import CatalogClient
+from order_service.events import OrderEvents
+from order_service.fulfillment import Fulfillment
 from order_service.idempotency import IdempotencyKeys
 from order_service.models import OrderStatus
 from order_service.repository import OrderRepository
+from order_service.settings import OrderSettings
 from order_service.stock_client import StockClient
 from orders.v1 import orders_pb2
 from orders.v1 import orders_pb2_grpc as orders_grpc
@@ -37,6 +40,7 @@ from .fakes import (
     OTHER_ID,
     FakeCarts,
     FakeCatalog,
+    FakeEvents,
     FakeIdempotency,
     FakeRepository,
     FakeStock,
@@ -75,12 +79,14 @@ async def stub(
     idempotency: FakeIdempotency,
     stock: FakeStock,
     catalog: FakeCatalog,
+    events: FakeEvents,
     policies: None,
 ) -> AsyncIterator["orders_grpc.OrderServiceAsyncStub"]:
     container = Dependencies()
     container.mock(OrderRepository, repository)
     container.mock(Carts, carts)
     container.mock(IdempotencyKeys, idempotency)
+    container.mock(OrderEvents, events)
     sessions = FakeSessions()
     interceptors = [
         RequestIdInterceptor(),
@@ -204,3 +210,42 @@ async def test_without_token_is_unauthenticated(stub: "orders_grpc.OrderServiceA
         await stub.GetCart(orders_pb2.GetCartRequest(), metadata=(("x-api-key", API_KEY),))
 
     assert info.value.code() is grpc.StatusCode.UNAUTHENTICATED
+
+
+async def test_track_order_streams_until_delivered_with_items_count(
+    stub: "orders_grpc.OrderServiceAsyncStub", repository: FakeRepository, events: FakeEvents
+) -> None:
+    order = repository.add()
+    fulfillment = Fulfillment(repository, events, OrderSettings())
+    call = stub.TrackOrder(orders_pb2.TrackOrderRequest(order_id=order.order_id), metadata=BUYER)
+
+    first = await call.read()
+    for _ in range(4):
+        await fulfillment.advance()
+    rest: list[orders_pb2.TrackOrderResponse] = []
+    # read() и async for на одном вызове смешивать нельзя
+    while isinstance(message := await call.read(), orders_pb2.TrackOrderResponse):
+        rest.append(message)
+
+    assert isinstance(first, orders_pb2.TrackOrderResponse)
+    assert first.status == orders_pb2.ORDER_STATUS_CREATED
+    assert [message.status for message in rest] == [
+        orders_pb2.ORDER_STATUS_PAID,
+        orders_pb2.ORDER_STATUS_ASSEMBLING,
+        orders_pb2.ORDER_STATUS_HANDED_TO_COURIER,
+        orders_pb2.ORDER_STATUS_DELIVERED,
+    ]
+    assert await call.code() is grpc.StatusCode.OK
+    assert ("x-items-count", "5") in tuple(await call.trailing_metadata())
+
+
+async def test_track_foreign_order_is_not_found(
+    stub: "orders_grpc.OrderServiceAsyncStub", repository: FakeRepository
+) -> None:
+    order = repository.add(user_id=OTHER_ID)
+    call = stub.TrackOrder(orders_pb2.TrackOrderRequest(order_id=order.order_id), metadata=BUYER)
+
+    with pytest.raises(grpc.aio.AioRpcError) as info:
+        await call.read()
+
+    assert info.value.code() is grpc.StatusCode.NOT_FOUND
