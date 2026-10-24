@@ -152,14 +152,14 @@
 - Create: `services/users/src/user_service/handlers/{sign_up_u_u.py,confirm_email_u_u.py,sign_in_u_u.py,sign_out_u_u.py,get_me_u_u.py,update_profile_u_u.py,legacy_reset_password_u_u.py,__init__.py}`
 - Create: `services/users/tests/...`
 - Modify: `docker-compose.yml`, `.env.example`
-- [ ] schema.sql (схема users), хэширование паролей средствами stdlib (hashlib.scrypt) — без лишних зависимостей; сид seller@stand.local с паролем SEED_SELLER_PASSWORD, подтверждён
-- [ ] SignUp (валидация → BadRequest, ALREADY_EXISTS, код в Redis confirm:{email} с TTL 15 мин), ConfirmEmail (INVALID_ARGUMENT / NOT_FOUND / FAILED_PRECONDITION)
-- [ ] SignIn (session:{token} с TTL SESSION_TTL_S, expires_at; UNAUTHENTICATED / FAILED_PRECONDITION), SignOut, GetMe
-- [ ] UpdateProfile через FieldMask (display_name, phone; неизвестный путь → INVALID_ARGUMENT)
-- [ ] LegacyResetPassword — намеренный антипример: context.abort(UNKNOWN, "Validation failed"), с комментарием в коде
-- [ ] блок в compose
-- [ ] тесты: unit-тесты всех хэндлеров с замоканными репозиторием и Redis, тест wiring'а
-- [ ] make check && make test — зелёные
+- [x] schema.sql (схема users), хэширование паролей средствами stdlib (hashlib.scrypt) — без лишних зависимостей; сид seller@stand.local с паролем SEED_SELLER_PASSWORD, подтверждён
+- [x] SignUp (валидация → BadRequest, ALREADY_EXISTS, код в Redis confirm:{email} с TTL 15 мин), ConfirmEmail (INVALID_ARGUMENT / NOT_FOUND / FAILED_PRECONDITION)
+- [x] SignIn (session:{token} с TTL SESSION_TTL_S, expires_at; UNAUTHENTICATED / FAILED_PRECONDITION), SignOut, GetMe
+- [x] UpdateProfile через FieldMask (display_name, phone; неизвестный путь → INVALID_ARGUMENT)
+- [x] LegacyResetPassword — намеренный антипример: context.abort(UNKNOWN, "Validation failed"), с комментарием в коде
+- [x] блок в compose
+- [x] тесты: unit-тесты всех хэндлеров с замоканными репозиторием и Redis, тест wiring'а
+- [x] make check && make test — зелёные
 
 ### Task 9: order-service — корзина и Checkout со StockClient
 
