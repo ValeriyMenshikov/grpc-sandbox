@@ -227,11 +227,11 @@
 
 - Create: `tests/smoke/test_smoke.py` (маркер stand)
 - Modify: `Makefile` (цель smoke), `docker-compose.yml` (подстройка mem_limit)
-- [ ] smoke: SignUp → код из Redis → ConfirmEmail → SignIn; SearchProducts → AddCartItem → Checkout с idempotency-key; TrackOrder до DELIVERED; Chat: join → приветствие → «где заказ» → ответ бота; продавцом: ImportProducts с плохой строкой → отчёт → ExportProducts содержит импорт
-- [ ] проверки DoD в smoke: без x-api-key → UNAUTHENTICATED; seller-метод покупателем → PERMISSION_DENIED; reflection перечисляет catalog.v1 и catalog.v2
-- [ ] make up — все контейнеры healthy; прогнать smoke
-- [ ] make stats — проверить ≤ ~1 ГБ, при необходимости подстроить mem_limit, записать цифры
-- [ ] make check && make test — зелёные
+- [x] smoke: SignUp → код из Redis → ConfirmEmail → SignIn; SearchProducts → AddCartItem → Checkout с idempotency-key; TrackOrder до DELIVERED; Chat: join → приветствие → «где заказ» → ответ бота; продавцом: ImportProducts с плохой строкой → отчёт → ExportProducts содержит импорт
+- [x] проверки DoD в smoke: без x-api-key → UNAUTHENTICATED; seller-метод покупателем → PERMISSION_DENIED; reflection перечисляет catalog.v1 и catalog.v2
+- [x] make up — все контейнеры healthy; прогнать smoke
+- [x] make stats — проверить ≤ ~1 ГБ, при необходимости подстроить mem_limit, записать цифры (~320 МБ факт, сумма лимитов 960 МБ — без изменений, docs/decisions.md §17)
+- [x] make check && make test — зелёные
 
 ### Task 14: Verify acceptance criteria
 
