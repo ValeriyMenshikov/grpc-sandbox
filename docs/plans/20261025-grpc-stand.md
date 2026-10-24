@@ -243,10 +243,10 @@
 
 ### Task 15: Update documentation
 
-- [ ] README.md: запуск за 3 команды, таблица портов, схема из раздела 3, как добавить новый сервис, результаты make stats
-- [ ] docs/api.md: все методы, Auth, статус-коды, details, metadata (x-api-key, authorization, x-request-id, x-items-count, idempotency-key, x-debug-delay-ms, x-close-reason), пометка антипримера LegacyResetPassword, различия catalog v1/v2
-- [ ] docs/decisions.md: все принятые по ходу решения
-- [ ] CLAUDE.md: соглашения проекта (именование хэндлеров, шаблон main.py, команды Makefile)
+- [x] README.md: запуск за 3 команды, таблица портов, схема из раздела 3, как добавить новый сервис, результаты make stats
+- [x] docs/api.md: все методы, Auth, статус-коды, details, metadata (x-api-key, authorization, x-request-id, x-items-count, idempotency-key, x-debug-delay-ms, x-close-reason), пометка антипримера LegacyResetPassword, различия catalog v1/v2
+- [x] docs/decisions.md: все принятые по ходу решения
+- [x] CLAUDE.md: соглашения проекта (именование хэндлеров, шаблон main.py, команды Makefile)
 
 ## Post-Completion
 
