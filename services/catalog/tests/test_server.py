@@ -1,5 +1,6 @@
 """catalog-service целиком на in-process сервере: v1 и v2 на одном порту, интерцепторы, details."""
 
+import asyncio
 from collections.abc import AsyncIterator, Iterator
 
 import catalog_service.handlers  # noqa: F401  — регистрирует хэндлеры
@@ -225,3 +226,50 @@ async def test_seller_methods_reject_others(
     )
     assert import_info.value.code() is expected
     assert export_info.value.code() is expected
+
+
+async def test_reserve_shortage_has_precondition_failure(
+    channel: grpc.aio.Channel, repository: FakeRepository
+) -> None:
+    product = repository.add("EL-1", "Наушники", stock=1)
+    request = v1.ReserveStockRequest(
+        order_id="o1", items=[v1.StockItem(product_id=product.product_id, quantity=2)]
+    )
+
+    with pytest.raises(grpc.aio.AioRpcError) as info:
+        await v1_grpc.StockServiceStub(channel).ReserveStock(request, metadata=SERVICE)
+
+    assert info.value.code() is grpc.StatusCode.FAILED_PRECONDITION
+    failure = error_details_pb2.PreconditionFailure()
+    assert rich_status(info.value).details[0].Unpack(failure)
+    assert [(v.type, v.subject) for v in failure.violations] == [
+        ("INSUFFICIENT_STOCK", f"product:{product.product_id}")
+    ]
+
+
+async def test_reserve_delay_hits_client_deadline(
+    channel: grpc.aio.Channel, repository: FakeRepository
+) -> None:
+    product = repository.add("EL-1", "Наушники", stock=1)
+    request = v1.ReserveStockRequest(
+        order_id="o1", items=[v1.StockItem(product_id=product.product_id, quantity=1)]
+    )
+    stub = v1_grpc.StockServiceStub(channel)
+
+    with pytest.raises(grpc.aio.AioRpcError) as info:
+        await stub.ReserveStock(
+            request, metadata=(*SERVICE, ("x-debug-delay-ms", "2000")), timeout=0.2
+        )
+    # Даём серверу дойти до конца урезанной задержки: резерв так и не появляется
+    await asyncio.sleep(0.3)
+
+    assert info.value.code() is grpc.StatusCode.DEADLINE_EXCEEDED
+    assert repository.reservations == {}
+    reserved = await stub.ReserveStock(request, metadata=(*SERVICE, ("x-debug-delay-ms", "50")))
+    assert reserved.items[0].quantity == 1
+
+
+async def test_stock_service_requires_api_key(channel: grpc.aio.Channel) -> None:
+    with pytest.raises(grpc.aio.AioRpcError) as info:
+        await v1_grpc.StockServiceStub(channel).GetStock(v1.GetStockRequest(product_id="p"))
+    assert info.value.code() is grpc.StatusCode.UNAUTHENTICATED

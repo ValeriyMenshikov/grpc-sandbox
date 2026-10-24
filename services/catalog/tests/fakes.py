@@ -11,6 +11,9 @@ from catalog_service.models import (
     Product,
     ProductFilter,
     ProductSort,
+    ReserveResult,
+    StockItem,
+    StockShortage,
 )
 from catalog_service.repository import CatalogRepository
 
@@ -24,6 +27,8 @@ class FakeRepository(CatalogRepository):
         self.products: dict[str, Product] = {}
         self.imports: list[tuple[str, ImportMode, list[ImportItem]]] = []
         self.export_closed = False
+        # order_id → зарезервированные позиции; Product.stock здесь — остаток без учёта резервов
+        self.reservations: dict[str, list[StockItem]] = {}
         self._clock = EPOCH
 
     async def connect(self) -> None:
@@ -140,3 +145,31 @@ class FakeRepository(CatalogRepository):
                     yield product
         finally:
             self.export_closed = True
+
+    async def get_available(self, product_id: str) -> int | None:
+        product = self.products.get(product_id)
+        if product is None:
+            return None
+        reserved = sum(
+            item.quantity
+            for items in self.reservations.values()
+            for item in items
+            if item.product_id == product_id
+        )
+        return max(product.stock - reserved, 0)
+
+    async def reserve_stock(self, order_id: str, items: Sequence[StockItem]) -> ReserveResult:
+        if order_id in self.reservations:
+            return ReserveResult(items=self.reservations[order_id], shortages=[])
+        shortages = []
+        for item in items:
+            available = await self.get_available(item.product_id)
+            if available is None or available < item.quantity:
+                shortages.append(StockShortage(item.product_id, item.quantity, available))
+        if shortages:
+            return ReserveResult(items=[], shortages=shortages)
+        self.reservations[order_id] = list(items)
+        return ReserveResult(items=list(items), shortages=[])
+
+    async def release_stock(self, order_id: str) -> bool:
+        return self.reservations.pop(order_id, None) is not None

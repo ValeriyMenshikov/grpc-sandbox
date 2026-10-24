@@ -55,3 +55,25 @@ class ImportItem:
     category: str
     price_kopecks: int
     stock: int
+
+
+@dataclass(frozen=True)
+class StockItem:
+    product_id: str
+    quantity: int
+
+
+@dataclass(frozen=True)
+class StockShortage:
+    product_id: str
+    requested: int
+    # Доступный остаток; None — товара нет в каталоге
+    available: int | None
+
+
+@dataclass(frozen=True)
+class ReserveResult:
+    """Итог ReserveStock: либо зарезервированы все позиции, либо (при нехватке) ни одной."""
+
+    items: list[StockItem]
+    shortages: list[StockShortage]

@@ -4,6 +4,7 @@
 Адрес — env TEST_POSTGRES_DSN, по умолчанию Postgres из compose на localhost.
 """
 
+import asyncio
 import os
 import uuid
 from collections.abc import AsyncIterator
@@ -12,7 +13,15 @@ from datetime import timedelta
 
 import asyncpg
 import pytest
-from catalog_service.models import ImportItem, ImportMode, ImportOutcome, ProductFilter, ProductSort
+from catalog_service.models import (
+    ImportItem,
+    ImportMode,
+    ImportOutcome,
+    ProductFilter,
+    ProductSort,
+    StockItem,
+    StockShortage,
+)
 from catalog_service.repository import CatalogRepository
 from stand_core.clients import Postgres
 from stand_core.settings import Settings
@@ -142,3 +151,52 @@ async def test_export_streams_seller_products_since(repository: CatalogRepositor
     assert sorted(everything[:2]) == ["A", "B"]
     assert everything[2] == "C"
     assert recent == ["C"]
+
+
+async def _products(repository: CatalogRepository, *stocks: int) -> list[str]:
+    await repository.import_products(
+        SELLER, ImportMode.UPSERT, [item(f"S{i}", stock=stock) for i, stock in enumerate(stocks)]
+    )
+    found = await repository.search_products(ProductFilter(category="test"), 0, 10)
+    by_offer = {p.offer_id: p.product_id for p in found}
+    return [by_offer[f"S{i}"] for i in range(len(stocks))]
+
+
+async def test_reserve_is_atomic_and_idempotent(repository: CatalogRepository) -> None:
+    a, b = await _products(repository, 5, 1)
+
+    short = await repository.reserve_stock("o1", [StockItem(a, 2), StockItem(b, 2)])
+    missing = await repository.reserve_stock("o1", [StockItem("missing", 1)])
+    reserved = await repository.reserve_stock("o2", [StockItem(a, 4), StockItem(b, 1)])
+    again = await repository.reserve_stock("o2", [StockItem(a, 4), StockItem(b, 1)])
+
+    assert short.items == []
+    assert short.shortages == [StockShortage(b, 2, 1)]
+    assert missing.shortages == [StockShortage("missing", 1, None)]
+    assert reserved.shortages == []
+    assert again.shortages == []
+    assert sorted(again.items, key=lambda i: i.product_id) == sorted(
+        reserved.items, key=lambda i: i.product_id
+    )
+    assert (await repository.get_available(a), await repository.get_available(b)) == (1, 0)
+    assert await repository.get_available("missing") is None
+
+
+async def test_concurrent_reserves_do_not_oversell(repository: CatalogRepository) -> None:
+    [a] = await _products(repository, 3)
+
+    results = await asyncio.gather(
+        *(repository.reserve_stock(f"o{i}", [StockItem(a, 1)]) for i in range(6))
+    )
+
+    assert sum(1 for r in results if not r.shortages) == 3
+    assert await repository.get_available(a) == 0
+
+
+async def test_release_is_idempotent(repository: CatalogRepository) -> None:
+    [a] = await _products(repository, 3)
+    await repository.reserve_stock("o1", [StockItem(a, 3)])
+
+    assert await repository.release_stock("o1") is True
+    assert await repository.release_stock("o1") is False
+    assert await repository.get_available(a) == 3

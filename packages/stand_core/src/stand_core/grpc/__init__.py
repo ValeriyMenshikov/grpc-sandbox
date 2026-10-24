@@ -26,6 +26,7 @@ from stand_core.grpc.errors import (
     build_status,
 )
 from stand_core.grpc.interceptors import AuthPolicy, register_auth_policies
+from stand_core.grpc.interceptors.base import metadata_value
 from stand_core.grpc.rpc import (
     GRPC_HANDLERS,
     GrpcTypeEnum,
@@ -64,6 +65,7 @@ __all__ = (
     "current_user_or_none",
     "grpc_server",
     "inject_handlers",
+    "metadata_value",
     "register_auth_policies",
     "request_id",
     "resolve_interceptors",

@@ -15,6 +15,9 @@ from catalog_service.models import (
     Product,
     ProductFilter,
     ProductSort,
+    ReserveResult,
+    StockItem,
+    StockShortage,
 )
 
 SCHEMA_PATH = Path(__file__).with_name("schema.sql")
@@ -63,6 +66,37 @@ RETURNING product_id, true AS created
 _SET_STOCK = """
 INSERT INTO catalog.stocks (product_id, quantity) VALUES ($1, $2)
 ON CONFLICT (product_id) DO UPDATE SET quantity = EXCLUDED.quantity
+"""
+
+_AVAILABLE = """
+SELECT GREATEST(COALESCE(s.quantity, 0) - COALESCE(
+           (SELECT sum(quantity)::bigint FROM catalog.reservations WHERE product_id = p.product_id),
+           0), 0) AS available
+FROM catalog.products AS p
+LEFT JOIN catalog.stocks AS s ON s.product_id = p.product_id
+WHERE p.product_id = $1
+"""
+
+# Блокировка строк товаров в порядке product_id: параллельные резервы одних товаров
+# выстраиваются в очередь и не ловят deadlock
+_LOCK_STOCKS = """
+SELECT p.product_id, COALESCE(s.quantity, 0) AS quantity
+FROM catalog.products AS p
+LEFT JOIN catalog.stocks AS s ON s.product_id = p.product_id
+WHERE p.product_id = ANY($1::text[])
+ORDER BY p.product_id
+FOR UPDATE OF p
+"""
+
+_RESERVED = """
+SELECT product_id, sum(quantity)::bigint AS reserved
+FROM catalog.reservations
+WHERE product_id = ANY($1::text[])
+GROUP BY product_id
+"""
+
+_ORDER_RESERVATIONS = """
+SELECT product_id, quantity FROM catalog.reservations WHERE order_id = $1 ORDER BY product_id
 """
 
 EXPORT_PREFETCH = 100
@@ -156,3 +190,56 @@ class CatalogRepository(Client):
             )
             async for record in cursor:
                 yield _product(record)
+
+    async def get_available(self, product_id: str) -> int | None:
+        """Доступный остаток (остаток минус резервы); None — товара нет."""
+        record = await self._postgres.pool.fetchrow(_AVAILABLE, product_id)
+        return None if record is None else int(record["available"])
+
+    async def reserve_stock(self, order_id: str, items: Sequence[StockItem]) -> ReserveResult:
+        """Атомарный резерв всех позиций под order_id, идемпотентно.
+
+        Если под order_id уже есть резерв, он и возвращается — без проверки остатков и без
+        сравнения с запрошенными позициями. При нехватке хотя бы одной позиции ничего не пишется.
+        """
+        product_ids = [item.product_id for item in items]
+        async with self._postgres.pool.acquire() as connection, connection.transaction():
+            # Повторы с одним order_id выполняются строго по очереди, даже с разными товарами
+            await connection.execute("SELECT pg_advisory_xact_lock(hashtext($1))", order_id)
+            existing = await connection.fetch(_ORDER_RESERVATIONS, order_id)
+            if existing:
+                return ReserveResult(
+                    items=[StockItem(r["product_id"], r["quantity"]) for r in existing],
+                    shortages=[],
+                )
+            quantities = {
+                r["product_id"]: r["quantity"]
+                for r in await connection.fetch(_LOCK_STOCKS, product_ids)
+            }
+            reserved = {
+                r["product_id"]: r["reserved"]
+                for r in await connection.fetch(_RESERVED, product_ids)
+            }
+            shortages = []
+            for item in items:
+                if item.product_id not in quantities:
+                    shortages.append(StockShortage(item.product_id, item.quantity, None))
+                    continue
+                available = max(quantities[item.product_id] - reserved.get(item.product_id, 0), 0)
+                if available < item.quantity:
+                    shortages.append(StockShortage(item.product_id, item.quantity, available))
+            if shortages:
+                return ReserveResult(items=[], shortages=shortages)
+            await connection.executemany(
+                "INSERT INTO catalog.reservations (order_id, product_id, quantity) "
+                "VALUES ($1, $2, $3)",
+                [(order_id, item.product_id, item.quantity) for item in items],
+            )
+        return ReserveResult(items=list(items), shortages=[])
+
+    async def release_stock(self, order_id: str) -> bool:
+        """Снять резерв order_id; False — резерва не было (уже снят или не создавался)."""
+        released = await self._postgres.pool.fetch(
+            "DELETE FROM catalog.reservations WHERE order_id = $1 RETURNING product_id", order_id
+        )
+        return bool(released)

@@ -10,3 +10,6 @@ class CatalogSettings(Settings):
 
     # Больше строк в одном ImportProducts → RESOURCE_EXHAUSTED + QuotaFailure
     import_max_rows: int = 10_000
+    # Искусственная задержка ReserveStock (уроки про deadline и ретраи); metadata
+    # x-debug-delay-ms переопределяет её для одного вызова
+    stock_reserve_delay_ms: int = 0

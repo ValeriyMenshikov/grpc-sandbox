@@ -49,6 +49,9 @@ def test_main_builds_client_tree() -> None:
             "/catalog.v1.CatalogService/GetProduct",
             "/catalog.v1.CatalogService/ImportProducts",
             "/catalog.v1.CatalogService/SearchProducts",
+            "/catalog.v1.StockService/GetStock",
+            "/catalog.v1.StockService/ReleaseStock",
+            "/catalog.v1.StockService/ReserveStock",
             "/catalog.v2.CatalogService/GetProduct",
             "/catalog.v2.CatalogService/SearchProducts",
         ]

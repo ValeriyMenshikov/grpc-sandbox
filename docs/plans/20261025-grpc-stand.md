@@ -138,11 +138,11 @@
 
 - Create: `services/catalog/src/catalog_service/handlers/{get_stock_u_u.py,reserve_stock_u_u.py,release_stock_u_u.py}`
 - Modify: `services/catalog/src/catalog_service/repository.py`, `services/catalog/tests/...`
-- [ ] GetStock: доступный остаток
-- [ ] ReserveStock: атомарный резерв под order_id в транзакции, нехватка → FAILED_PRECONDITION + PreconditionFailure по товарам, идемпотентность по order_id; задержка STOCK_RESERVE_DELAY_MS и x-debug-delay-ms
-- [ ] ReleaseStock: идемпотентное снятие резерва
-- [ ] тесты: нехватка с деталями, повтор с тем же order_id, release дважды, задержка из env и metadata (с проверкой deadline)
-- [ ] make check && make test — зелёные
+- [x] GetStock: доступный остаток
+- [x] ReserveStock: атомарный резерв под order_id в транзакции, нехватка → FAILED_PRECONDITION + PreconditionFailure по товарам, идемпотентность по order_id; задержка STOCK_RESERVE_DELAY_MS и x-debug-delay-ms
+- [x] ReleaseStock: идемпотентное снятие резерва
+- [x] тесты: нехватка с деталями, повтор с тем же order_id, release дважды, задержка из env и metadata (с проверкой deadline)
+- [x] make check && make test — зелёные
 
 ### Task 8: user-service
 
