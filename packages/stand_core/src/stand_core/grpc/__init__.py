@@ -24,6 +24,8 @@ from stand_core.grpc.errors import (
     Unauthenticated,
     abort_with_error,
     build_status,
+    error_status,
+    precondition_violations,
 )
 from stand_core.grpc.interceptors import AuthPolicy, register_auth_policies
 from stand_core.grpc.interceptors.base import metadata_value
@@ -63,9 +65,11 @@ __all__ = (
     "build_status",
     "current_user",
     "current_user_or_none",
+    "error_status",
     "grpc_server",
     "inject_handlers",
     "metadata_value",
+    "precondition_violations",
     "register_auth_policies",
     "request_id",
     "resolve_interceptors",

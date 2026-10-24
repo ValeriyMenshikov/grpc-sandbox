@@ -197,6 +197,33 @@ class DependencyUnavailable(StandError):
 
 
 INTERNAL_MESSAGE = "Internal error"
+DETAILS_KEY = "grpc-status-details-bin"
+
+
+def error_status(error: grpc.aio.AioRpcError) -> status_pb2.Status | None:
+    """google.rpc.Status из ошибки исходящего вызова; None — у ошибки нет rich details.
+
+    `rpc_status.from_call` типизирован только под синхронный `grpc.Call`.
+    """
+    for key, value in error.trailing_metadata() or ():
+        if key == DETAILS_KEY and isinstance(value, bytes):
+            return status_pb2.Status.FromString(value)
+    return None
+
+
+def precondition_violations(error: grpc.aio.AioRpcError) -> list[PreconditionViolation]:
+    """Нарушения из PreconditionFailure в details ошибки соседа (чтобы отдать их дальше)."""
+    status = error_status(error)
+    if status is None:
+        return []
+    violations: list[PreconditionViolation] = []
+    for detail in status.details:
+        failure = error_details_pb2.PreconditionFailure()
+        if detail.Unpack(failure):
+            violations += [
+                PreconditionViolation(v.type, v.subject, v.description) for v in failure.violations
+            ]
+    return violations
 
 
 def build_status(exc: BaseException) -> grpc.Status:

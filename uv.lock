@@ -10,6 +10,7 @@ resolution-markers = [
 members = [
     "catalog-service",
     "grpc-stand",
+    "order-service",
     "stand-core",
     "stand-protos",
     "user-service",
@@ -766,6 +767,21 @@ source = { registry = "https://pypi.org/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/1a/34/4733a640e69d4d8b0f52aef46139b5129351cc9b1d13d49301ea89713b18/nuke_di-2.0.0.tar.gz", hash = "sha256:89d8dec74fedee1356df2cafacc3a9fb9a02e2e2d24476f4ba505cc454da92ab", size = 305049, upload-time = "2026-10-23T10:11:34.324Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/a0/42/0d05e890521ceda02b8236783d144de41a90250f01e12d130bac11383372/nuke_di-2.0.0-py3-none-any.whl", hash = "sha256:9f069df20b7822ced3fe68a6493b2cd6eb658486061f9585922db2f60a1824dc", size = 104429, upload-time = "2026-10-23T10:11:32.715Z" },
+]
+
+[[package]]
+name = "order-service"
+version = "0.1.0"
+source = { editable = "services/orders" }
+dependencies = [
+    { name = "stand-core" },
+    { name = "stand-protos" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "stand-core", editable = "packages/stand_core" },
+    { name = "stand-protos", editable = "gen" },
 ]
 
 [[package]]

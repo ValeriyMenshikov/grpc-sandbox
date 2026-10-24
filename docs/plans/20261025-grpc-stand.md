@@ -169,13 +169,13 @@
 - Create: `services/orders/src/order_service/handlers/{add_cart_item_u_u.py,remove_cart_item_u_u.py,get_cart_u_u.py,checkout_u_u.py,get_order_u_u.py,list_orders_u_u.py,cancel_order_u_u.py,__init__.py}`
 - Create: `services/orders/tests/...`
 - Modify: `docker-compose.yml`, `.env.example`
-- [ ] StockClient (и клиент к CatalogService для цен) на базовом клиенте stand_core, адрес из CATALOG_ADDR
-- [ ] корзина в Redis cart:{user_id}; GetCart подтягивает цены и остатки из catalog; товар не найден → NOT_FOUND
-- [ ] Checkout: idempotency-key обязателен, idem:{user_id}:{key} TTL 24 ч, пустая корзина → FAILED_PRECONDITION, ReserveStock с пробросом deadline и x-request-id, нехватка → FAILED_PRECONDITION с деталями от catalog, catalog недоступен → UNAVAILABLE без создания заказа, заказ CREATED, очистка корзины
-- [ ] GetOrder (чужой → NOT_FOUND), ListOrders (новые первыми, пагинация, фильтр), CancelOrder (до HANDED_TO_COURIER, иначе FAILED_PRECONDITION; ReleaseStock)
-- [ ] блок в compose
-- [ ] тесты: unit-тесты с подменой StockClient через DI.override (идемпотентность, нехватка, DependencyUnavailable → UNAVAILABLE, чужой заказ, отмена после передачи курьеру), тест wiring'а
-- [ ] make check && make test — зелёные
+- [x] StockClient (и клиент к CatalogService для цен) на базовом клиенте stand_core, адрес из CATALOG_ADDR
+- [x] корзина в Redis cart:{user_id}; GetCart подтягивает цены и остатки из catalog; товар не найден → NOT_FOUND
+- [x] Checkout: idempotency-key обязателен, idem:{user_id}:{key} TTL 24 ч, пустая корзина → FAILED_PRECONDITION, ReserveStock с пробросом deadline и x-request-id, нехватка → FAILED_PRECONDITION с деталями от catalog, catalog недоступен → UNAVAILABLE без создания заказа, заказ CREATED, очистка корзины
+- [x] GetOrder (чужой → NOT_FOUND), ListOrders (новые первыми, пагинация, фильтр), CancelOrder (до HANDED_TO_COURIER, иначе FAILED_PRECONDITION; ReleaseStock)
+- [x] блок в compose
+- [x] тесты: unit-тесты с подменой StockClient через DI.override (идемпотентность, нехватка, DependencyUnavailable → UNAVAILABLE, чужой заказ, отмена после передачи курьеру), тест wiring'а
+- [x] make check && make test — зелёные
 
 ### Task 10: order-service — имитация доставки и TrackOrder
 

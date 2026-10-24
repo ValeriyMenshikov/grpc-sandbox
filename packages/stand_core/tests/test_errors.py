@@ -1,3 +1,5 @@
+from typing import Any
+
 import grpc
 import pytest
 from google.protobuf.message import Message
@@ -17,6 +19,8 @@ from stand_core.grpc.errors import (
     StandError,
     Unauthenticated,
     build_status,
+    error_status,
+    precondition_violations,
 )
 
 STATUS_DETAILS_KEY = "grpc-status-details-bin"
@@ -142,3 +146,24 @@ def test_resource_info_fields() -> None:
     unpack_status(build_status(NotFound("order", "o-1"))).details[0].Unpack(detail)
 
     assert (detail.resource_type, detail.resource_name) == ("order", "o-1")
+
+
+def _aio_error(code: grpc.StatusCode, trailing: tuple[tuple[str, str | bytes], ...]) -> Any:
+    return grpc.aio.AioRpcError(
+        code, grpc.aio.Metadata(), grpc.aio.Metadata(*trailing), details="boom"
+    )
+
+
+def test_error_status_and_precondition_violations_from_neighbour_error() -> None:
+    violation = PreconditionViolation("INSUFFICIENT_STOCK", "product:p1", "requested 2")
+    status = build_status(FailedPrecondition([violation]))
+    with_details = _aio_error(grpc.StatusCode.FAILED_PRECONDITION, status.trailing_metadata)
+    without_details = _aio_error(grpc.StatusCode.FAILED_PRECONDITION, (("x-other", "1"),))
+
+    parsed = error_status(with_details)
+
+    assert parsed is not None
+    assert parsed.code == grpc.StatusCode.FAILED_PRECONDITION.value[0]
+    assert precondition_violations(with_details) == [violation]
+    assert error_status(without_details) is None
+    assert precondition_violations(without_details) == []

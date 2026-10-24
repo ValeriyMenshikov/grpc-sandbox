@@ -1,19 +1,19 @@
 """Хелперы для тестов сервисов стенда.
 
-`rich_status` — google.rpc.Status из ошибки grpc.aio: `rpc_status.from_call` типизирован только
-под `grpc.Call`.
+`rich_status` — google.rpc.Status из ошибки grpc.aio с проверкой, что details есть и код совпадает.
 """
 
 import grpc
 from google.rpc import status_pb2
 
-DETAILS_KEY = "grpc-status-details-bin"
+from stand_core.grpc.errors import DETAILS_KEY, error_status
+
+__all__ = ("DETAILS_KEY", "rich_status")
 
 
 def rich_status(error: grpc.aio.AioRpcError) -> status_pb2.Status:
-    for key, value in error.trailing_metadata() or ():
-        if key == DETAILS_KEY and isinstance(value, bytes):
-            status = status_pb2.Status.FromString(value)
-            assert status.code == error.code().value[0]
-            return status
-    raise AssertionError(f"{error.code()} has no {DETAILS_KEY}")
+    status = error_status(error)
+    if status is None:
+        raise AssertionError(f"{error.code()} has no {DETAILS_KEY}")
+    assert status.code == error.code().value[0]
+    return status

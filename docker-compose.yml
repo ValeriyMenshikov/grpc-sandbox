@@ -102,5 +102,26 @@ services:
         condition: service_healthy
     healthcheck: *grpc-healthcheck
 
+  orders:
+    <<: *python-service
+    command: ["python", "-m", "order_service.main"]
+    environment:
+      <<: *common-env
+      GRPC_PORT: 50053
+      CATALOG_ADDR: ${CATALOG_ADDR:-catalog:50052}
+      IDEMPOTENCY_TTL_S: ${IDEMPOTENCY_TTL_S:-86400}
+    ports:
+      - "${ORDERS_PORT:-50053}:50053"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      # Redis — сессии, корзины cart:{user_id} и ключи идемпотентности idem:{user_id}:{key}
+      redis:
+        condition: service_healthy
+      # Только порядок старта: остановленный позже catalog даёт UNAVAILABLE у Checkout
+      catalog:
+        condition: service_healthy
+    healthcheck: *grpc-healthcheck
+
 volumes:
   pgdata:
