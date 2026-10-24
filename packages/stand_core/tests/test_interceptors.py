@@ -48,6 +48,10 @@ ERRORS: dict[str, StandError] = {
 }
 
 
+# Токен, на котором хранилище сессий падает (как недоступный Redis)
+BROKEN_TOKEN = "broken-token"
+
+
 class FakeSessions(Sessions):
     """Сессии без Redis: токен → пользователь."""
 
@@ -58,6 +62,8 @@ class FakeSessions(Sessions):
         }
 
     async def get(self, token: str) -> CurrentUser | None:
+        if token == BROKEN_TOKEN:
+            raise ConnectionError("redis:6379 refused")
         return self.users.get(token)
 
 
@@ -398,6 +404,17 @@ async def test_user_method_without_valid_token_is_unauthenticated(
     )
 
     assert error.code() is grpc.StatusCode.UNAUTHENTICATED
+
+
+async def test_broken_session_store_is_internal_without_internals(
+    channel: grpc.aio.Channel,
+) -> None:
+    error = await get_error(
+        unary(channel)(catalog_pb2.GetProductRequest(product_id="p1"), metadata=auth(BROKEN_TOKEN))
+    )
+
+    assert error.code() is grpc.StatusCode.INTERNAL
+    assert error.details() == "Internal error"
 
 
 async def test_user_method_without_policy_requires_user(channel: grpc.aio.Channel) -> None:

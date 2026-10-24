@@ -11,7 +11,7 @@
 - `make up` / `make down` / `make reset` — стенд в docker compose (`up` пересобирает образ)
 - `make smoke` — smoke против поднятого стенда (маркер `stand`)
 - Один сервис: `uv run pytest services/orders`
-- Другая версия Python: `PYTHON=3.14 make check test` (нужен обычный CPython, не `3.14t`)
+- Другая версия Python: `UV_PROJECT_ENVIRONMENT=/tmp/stand-venv-314 PYTHON=3.14.2 make install check test` — отдельный venv, `.venv` на 3.12 не трогается; `install` обязателен (без него в venv нет пакетов сервисов). Нужен обычный CPython, не free-threaded `3.14t` (под него нет колёс grpcio-tools)
 
 Перед коммитом: `make check && make test` — зелёные.
 
@@ -19,7 +19,8 @@
 
 - uv workspace: `gen/` (`stand-protos`), `packages/stand_core`, `services/{users,catalog,orders,support,gateway}`. Модули сервисов — `user_service`, `catalog_service`, `order_service`, `support_service`, `gateway`.
 - Импорт сгенерированного кода: `from catalog.v1 import catalog_pb2`.
-- Каждый сервис: `settings.py`, `models.py` (доменные модели, не proto), `repository.py` + `schema.sql`, `convert.py` (домен ↔ proto), `auth.py` (`AUTH_POLICIES`), `handlers/`, `main.py`.
+- Каждый gRPC-сервис: `settings.py`, `models.py` (доменные модели, не proto), `repository.py` + `schema.sql`, `convert.py` (домен ↔ proto), `auth.py` (`AUTH_POLICIES`), `handlers/`, `main.py`.
+- gateway — не gRPC-сервис: эндпоинты — `api.py`, gRPC-клиенты к соседям — `clients.py`, JSON-модели ответов — `schemas.py`, маппинг gRPC → HTTP — `errors.py`, contextvars запроса ставит ASGI-middleware `context.py`; `handlers/`, `auth.py` и репозитория нет (docs/decisions.md §16).
 - Все зависимости — nuke-di `Client` (настройки, Postgres, Redis, репозитории, клиенты к соседям, интерцепторы), внедряются по type hint.
 
 ## Хэндлеры
@@ -78,5 +79,6 @@ async def serve(shutdown: Shutdown) -> None:
 - Python ≥ 3.12, mypy strict, ruff (строка 100). `type: ignore` вне `gen/` — нельзя (единственное обоснованное исключение — `packages/stand_core/tests/test_rpc.py`).
 - Комментарии, докстринги, docs — на русском; сообщения ошибок gRPC — на английском.
 - Новая переменная окружения — в `.env.example`, `docker-compose.yml` (с дефолтом `${VAR:-...}`) и `Settings` сервиса.
+- Порт внутри контейнера (`GRPC_PORT`, у gateway `HTTP_PORT`) задаётся в compose литералом и в `.env.example` не выносится; порт на хосте меняется через `<NAME>_PORT`.
 - Тесты: хэндлеры напрямую с фейками (`tests/fakes.py`) и `Mock`-контекстом; `test_server.py` — сервис in-process со всеми интерцепторами, подмена клиентов через `DI.override`; `test_wiring.py` — дерево клиентов из настоящего `main.py`; тесты против Postgres/Redis из compose пропускаются, если их нет. Rich details в тестах — `stand_core.testing.rich_status`.
 - Коммиты: `feat: ...` / `fix: ...` / `docs: ...`.

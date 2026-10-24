@@ -29,7 +29,9 @@ USERS_ADDR = f"{HOST}:{os.environ.get('USERS_PORT', '50051')}"
 CATALOG_ADDR = f"{HOST}:{os.environ.get('CATALOG_PORT', '50052')}"
 ORDERS_ADDR = f"{HOST}:{os.environ.get('ORDERS_PORT', '50053')}"
 SUPPORT_ADDR = f"{HOST}:{os.environ.get('SUPPORT_PORT', '50054')}"
-REDIS_URL = os.environ.get("SMOKE_REDIS_URL", f"redis://{HOST}:6379/0")
+REDIS_URL = os.environ.get(
+    "SMOKE_REDIS_URL", f"redis://{HOST}:{os.environ.get('REDIS_PORT', '6379')}/0"
+)
 SELLER_EMAIL = "seller@stand.local"
 SELLER_PASSWORD = os.environ.get("SEED_SELLER_PASSWORD", "seller-password")
 

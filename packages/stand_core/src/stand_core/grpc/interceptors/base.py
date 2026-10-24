@@ -5,12 +5,11 @@
 manager'а, который видит `context`, исключения хэндлера и число сообщений в стримах.
 """
 
-import inspect
 from abc import abstractmethod
 from collections.abc import AsyncIterator, Awaitable, Callable
 from contextlib import AbstractAsyncContextManager, aclosing
 from dataclasses import dataclass
-from typing import Any, ClassVar
+from typing import Any
 
 import grpc
 
@@ -45,8 +44,6 @@ def metadata_value(context: Context, key: str) -> str | None:
 
 
 class CallInterceptor(grpc.aio.ServerInterceptor):
-    skip_prefixes: ClassVar[tuple[str, ...]] = SYSTEM_METHOD_PREFIXES
-
     @abstractmethod
     def around(self, call: Call) -> AbstractAsyncContextManager[None]:
         """Контекст, внутри которого выполняется хэндлер.
@@ -61,7 +58,7 @@ class CallInterceptor(grpc.aio.ServerInterceptor):
         handler_call_details: grpc.HandlerCallDetails,
     ) -> "grpc.RpcMethodHandler[Any, Any] | None":
         handler = await continuation(handler_call_details)
-        if handler is None or handler_call_details.method.startswith(self.skip_prefixes):
+        if handler is None or handler_call_details.method.startswith(SYSTEM_METHOD_PREFIXES):
             return handler
         return wrap_handler(handler, handler_call_details.method, self.around)
 
@@ -88,16 +85,11 @@ def wrap_handler(
         call = Call(method, grpc_type, context)
         if grpc_type.client_streaming:
             request = _count_received(request, call)
-        async with around(call):
-            result = behavior(request, context)
-            if not inspect.isasyncgen(result):
-                # Исходящий стрим через `await context.write(...)` вместо async-генератора
-                await result
-                return
-            async with aclosing(result):
-                async for response in result:
-                    call.sent += 1
-                    yield response
+        # Исходящий стрим — всегда async-генератор: это проверяет `rpc` при регистрации
+        async with around(call), aclosing(behavior(request, context)) as result:
+            async for response in result:
+                call.sent += 1
+                yield response
 
     return METHOD_MAP[grpc_type](
         streaming if grpc_type.server_streaming else unary,

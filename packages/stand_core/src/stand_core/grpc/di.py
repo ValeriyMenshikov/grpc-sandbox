@@ -1,24 +1,8 @@
 """Связка реестра `rpc` с nuke-di: внедрение клиентов в хэндлеры и резолв интерцепторов.
 
 `@worker` запускает процесс в момент декорирования, если модуль — `__main__`, поэтому хэндлеры и
-интерцепторы внедряются на уровне модуля, до worker'а, а worker — последний в файле::
-
-    # services/catalog/src/catalog_service/main.py
-    from nuke_di import Shutdown, worker
-    from stand_core.grpc import GRPC_HANDLERS, grpc_server, inject_handlers, resolve_interceptors
-    from stand_core.grpc.interceptors import register_auth_policies
-
-    import catalog_service.handlers  # noqa: F401  — регистрирует хэндлеры
-
-    HANDLERS = inject_handlers(GRPC_HANDLERS)  # DI.inject каждого хэндлера, до connect()
-    INTERCEPTORS = resolve_interceptors()  # DI.resolve каждого интерцептора (они — Client)
-    register_auth_policies(catalog_service.handlers.AUTH_POLICIES)  # таблица из ТЗ 6.0
-
-
-    @worker
-    async def serve(shutdown: Shutdown) -> None:
-        async with grpc_server(HANDLERS, INTERCEPTORS):
-            await shutdown.wait()
+интерцепторы внедряются на уровне модуля, до worker'а, а worker — последний в файле. Образец —
+`services/catalog/src/catalog_service/main.py` (его копия — шаблон `main.py` в CLAUDE.md).
 """
 
 from collections.abc import Mapping, Sequence

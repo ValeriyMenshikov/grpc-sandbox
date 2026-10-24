@@ -15,7 +15,6 @@ def test_settings_read_from_env(monkeypatch: pytest.MonkeyPatch) -> None:
     settings = Settings()
 
     assert settings.stand_api_key == "key-1"
-    assert settings.grpc_port == 50099
     assert settings.postgres_dsn == "postgresql://u:p@db:5432/x"
     assert settings.redis_url == "redis://cache:6379/1"
     assert settings.shutdown_grace_seconds == 2.5

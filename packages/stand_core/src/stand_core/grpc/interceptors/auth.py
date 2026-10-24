@@ -18,11 +18,14 @@ from stand_core.grpc.context import (
 )
 from stand_core.grpc.errors import PermissionDenied, Unauthenticated, abort_with_error
 from stand_core.grpc.interceptors.base import Call, CallInterceptor, metadata_value
+from stand_core.logging import get_logger
 from stand_core.settings import Settings
 
 API_KEY_KEY = "x-api-key"
 AUTHORIZATION_KEY = "authorization"
 SELLER_ROLE_REQUIRED = "SELLER_ROLE_REQUIRED"
+
+logger = get_logger(__name__)
 
 
 class AuthPolicy(StrEnum):
@@ -62,6 +65,11 @@ class AuthInterceptor(CallInterceptor, Client):
         try:
             user = await self.authenticate(call)
         except (Unauthenticated, PermissionDenied) as exc:
+            await abort_with_error(call.context, exc)
+        except Exception as exc:
+            # Например, Redis сессий недоступен. ExceptionHandlingInterceptor стоит глубже и этого
+            # не видит: без перехвата grpc.aio отдал бы UNKNOWN с текстом исключения
+            logger.exception("grpc.auth_failed", method=call.method)
             await abort_with_error(call.context, exc)
         if user is None:
             yield

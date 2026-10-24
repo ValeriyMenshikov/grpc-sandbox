@@ -93,6 +93,7 @@ async def test_pages_follow_next_page_token(catalog: FakeRepository, context: Mo
         "not-base64!",
         "e30=",  # {} — нет offset
         "eyJvZmZzZXQiOiAtMX0=",  # offset < 0
+        "eyJvZmZzZXQiOiA5MjIzMzcyMDM2ODU0Nzc1ODA4fQ==",  # offset = 2**63, не влезает в bigint
         "eyJvZmZzZXQiOiAiMTAifQ==",  # offset — строка
         "eyJvZmZzZXQiOiB0cnVlfQ==",  # offset — bool
     ],

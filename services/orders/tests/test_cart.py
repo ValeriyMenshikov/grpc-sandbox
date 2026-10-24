@@ -5,7 +5,7 @@ from order_service.handlers.add_cart_item_u_u import add_cart_item
 from order_service.handlers.get_cart_u_u import get_cart
 from order_service.handlers.remove_cart_item_u_u import remove_cart_item
 from orders.v1 import orders_pb2
-from stand_core.grpc import CurrentUser, InvalidArgument, NotFound
+from stand_core.grpc import CurrentUser, DependencyUnavailable, InvalidArgument, NotFound
 
 from .fakes import BUYER_ID, FakeCarts, FakeCatalog
 
@@ -86,6 +86,16 @@ async def test_get_cart_uses_current_prices_and_skips_vanished_products(
     [item] = response.cart.items
     assert (item.product_id, item.unit_price.units, item.available) == ("p-2", 450, 1)
     assert response.cart.total.units == 900
+
+
+async def test_get_cart_when_catalog_is_unavailable(
+    context: Mock, carts: FakeCarts, catalog: FakeCatalog
+) -> None:
+    carts.carts[BUYER_ID] = {"p-1": 1, "p-2": 1}
+    catalog.error = DependencyUnavailable("catalog")
+
+    with pytest.raises(DependencyUnavailable):
+        await get_cart(orders_pb2.GetCartRequest(), context, carts, catalog)
 
 
 async def test_empty_cart_has_zero_total(

@@ -1,6 +1,6 @@
 """Доменные исключения стенда и их перевод в gRPC-статус с rich details (google.rpc)."""
 
-from collections.abc import Mapping, Sequence
+from collections.abc import Sequence
 from dataclasses import dataclass
 from typing import Any, Never
 
@@ -111,22 +111,12 @@ class PermissionDenied(StandError):
     code = grpc.StatusCode.PERMISSION_DENIED
     default_message = "Permission denied"
 
-    def __init__(
-        self,
-        reason: str,
-        message: str | None = None,
-        metadata: Mapping[str, str] | None = None,
-    ) -> None:
+    def __init__(self, reason: str, message: str | None = None) -> None:
         super().__init__(message)
         self.reason = reason
-        self.metadata = dict(metadata or {})
 
     def details(self) -> list[Message]:
-        return [
-            error_details_pb2.ErrorInfo(
-                reason=self.reason, domain=ERROR_DOMAIN, metadata=self.metadata
-            )
-        ]
+        return [error_details_pb2.ErrorInfo(reason=self.reason, domain=ERROR_DOMAIN)]
 
 
 class FailedPrecondition(StandError):

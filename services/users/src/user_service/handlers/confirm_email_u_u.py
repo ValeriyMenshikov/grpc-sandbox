@@ -46,9 +46,7 @@ async def confirm_email(
         )
     expected = await confirm_codes.get(email)
     if expected is None:
-        raise NotFound(
-            "confirmation_code", email, description="expired or never issued, sign up again"
-        )
+        raise NotFound("confirmation_code", email, description="expired or never issued")
     if not hmac.compare_digest(code.encode(), expected.encode()):
         raise InvalidArgument([FieldViolation("code", "does not match")], "Invalid code")
 

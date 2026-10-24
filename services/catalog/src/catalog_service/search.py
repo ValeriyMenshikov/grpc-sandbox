@@ -13,6 +13,8 @@ from catalog_service.repository import CatalogRepository
 
 DEFAULT_PAGE_SIZE = 20
 MAX_PAGE_SIZE = 100
+# Смещение уходит в Postgres OFFSET (bigint): больше — битый токен, а не ошибка базы
+MAX_PAGE_OFFSET = 2**63 - 1
 PAGE_TOKEN_FIELD = "pagination.page_token"
 
 
@@ -36,7 +38,11 @@ def decode_page_token(token: str) -> int:
         offset = data["offset"]
     except (ValueError, TypeError, KeyError, binascii.Error):
         offset = None
-    if not isinstance(offset, int) or isinstance(offset, bool) or offset < 0:
+    if (
+        not isinstance(offset, int)
+        or isinstance(offset, bool)
+        or not 0 <= offset <= MAX_PAGE_OFFSET
+    ):
         raise InvalidArgument([FieldViolation(PAGE_TOKEN_FIELD, "invalid page token")])
     return offset
 

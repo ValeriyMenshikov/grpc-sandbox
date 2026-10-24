@@ -190,6 +190,19 @@ def test_list_orders_rejects_unknown_status(http: TestClient, orders: FakeOrders
     assert orders.record.calls == []
 
 
+def test_values_out_of_proto_range_are_422(
+    http: TestClient, catalog: FakeCatalog, orders: FakeOrders
+) -> None:
+    page = http.get("/orders", params={"page_size": 2**31}, headers=BEARER)
+    price = http.get("/products", params={"min_price_kopecks": 2**63})
+    quantity = http.post(
+        "/cart/items", json={"product_id": "p-1", "quantity": 2**63}, headers=BEARER
+    )
+
+    assert [r.status_code for r in (page, price, quantity)] == [422, 422, 422]
+    assert orders.record.calls == []
+
+
 def test_get_order(http: TestClient, orders: FakeOrders) -> None:
     response = http.get("/orders/o-9", headers=BEARER)
 

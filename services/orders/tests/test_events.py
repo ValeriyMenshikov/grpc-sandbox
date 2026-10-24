@@ -13,6 +13,7 @@ import pytest
 from order_service.events import OrderEvents, channel, decode, encode
 from order_service.models import OrderStatus, StatusChange
 from order_service.settings import OrderSettings
+from redis.exceptions import ConnectionError as RedisConnectionError
 from stand_core.clients import Redis
 
 REDIS_URL = os.environ.get("TEST_REDIS_URL", "redis://localhost:6379/0")
@@ -25,7 +26,7 @@ async def events(monkeypatch: pytest.MonkeyPatch) -> AsyncIterator[OrderEvents]:
     redis = Redis(settings)
     try:
         await redis.connect()
-    except OSError as exc:
+    except (OSError, RedisConnectionError) as exc:
         pytest.skip(f"Redis is not available ({exc}); run make up")
     try:
         yield OrderEvents(redis, settings)

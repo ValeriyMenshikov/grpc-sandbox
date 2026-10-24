@@ -31,10 +31,11 @@ class CatalogClient(GrpcClient):
     async def get_products(self, product_ids: Iterable[str]) -> dict[str, catalog_pb2.Product]:
         """Товары параллельными GetProduct; отсутствующих в результате нет."""
         ids = list(dict.fromkeys(product_ids))
-        async with asyncio.TaskGroup() as group:
-            tasks = [group.create_task(self.get_product(product_id)) for product_id in ids]
+        # gather, а не TaskGroup: ошибка соседа (DependencyUnavailable) выходит как есть, без
+        # ExceptionGroup, и интерцептор превращает её в UNAVAILABLE, а не в INTERNAL
+        products = await asyncio.gather(*(self.get_product(product_id) for product_id in ids))
         return {
             product_id: product
-            for product_id, task in zip(ids, tasks, strict=True)
-            if (product := task.result()) is not None
+            for product_id, product in zip(ids, products, strict=True)
+            if product is not None
         }

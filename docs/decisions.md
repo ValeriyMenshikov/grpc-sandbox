@@ -10,7 +10,7 @@
 
 - Корневой проект `grpc-stand` — виртуальный (`[tool.uv] package = false`), он только держит общие настройки ruff/mypy/pytest и dev-группу.
 - Участники workspace: `packages/*` (stand_core) и `services/*`.
-- `.python-version` = 3.12 — минимальная поддерживаемая версия, на ней идёт локальная разработка. Проверка на 3.14 — в отдельном venv, чтобы не пересоздавать `.venv`: `UV_PROJECT_ENVIRONMENT=/tmp/stand-venv-314 make install check test PYTHON=3.14` (подробности — §18).
+- `.python-version` = 3.12 — минимальная поддерживаемая версия, на ней идёт локальная разработка. Проверка на 3.14 — в отдельном venv, чтобы не пересоздавать `.venv`: `UV_PROJECT_ENVIRONMENT=/tmp/stand-venv-314 PYTHON=3.14.2 make install check test` (подробности — §18). `PYTHON` Makefile передаёт и в `uv sync --python`, и в `uv run --python`; `install` нужен, потому что корневой проект зависит только от `stand-core` и `stand-protos`, а пакеты сервисов ставит `uv sync --all-packages`.
 
 ## 3. Тесты и smoke
 
@@ -40,7 +40,7 @@
 
 ## 7. stand_core: настройки, логи, ошибки, клиенты
 
-- `Settings` наследует `BaseSettings` и `nuke_di.Client` одновременно и объявляет `__init__(self) -> None`: иначе mypy синтезирует `__init__` из полей, и плагин nuke-di считает каждое поле зависимостью-клиентом. Подклассы настроек в сервисах делают так же. Конфликт pydantic-хуков `__get_pydantic_*_schema__` у двух баз снят явным переопределением со стандартным поведением pydantic. `.env` pydantic-settings не читает — переменные приходят из окружения (compose `env_file`).
+- `Settings` наследует `BaseSettings` и `nuke_di.Client` одновременно и объявляет `__init__(self) -> None`: иначе mypy синтезирует `__init__` из полей, и плагин nuke-di считает каждое поле зависимостью-клиентом. Подклассы настроек в сервисах делают так же. Конфликт pydantic-хуков `__get_pydantic_*_schema__` у двух баз снят явным переопределением со стандартным поведением pydantic. `.env` pydantic-settings не читает — переменные приходят из окружения контейнера. `env_file` в compose нет: каждая переменная передаётся явно в блоке `environment:` как `${VAR:-default}`, а `.env` служит только для подстановки этих значений. Переменная, которой нет в `environment:` сервиса, в контейнер не попадает, даже если она есть в `.env`.
 - Адреса (`POSTGRES_DSN`, `REDIS_URL`) не имеют значений по умолчанию и необязательны в `Settings`: сервис без Postgres/Redis не обязан их задавать. `Postgres` и `Redis` падают с понятной ошибкой в `connect()`, если адреса нет. `STAND_API_KEY` обязателен.
 - `Postgres.apply_schema(path)` выполняет `schema.sql` целиком; вызывает его `connect()` репозитория сервиса (репозиторий зависит от `Postgres` и подключается после него).
 - `Redis` работает с `decode_responses=True`: ключи и значения — `str`.
@@ -184,7 +184,7 @@
 ## 18. Проверка критериев приёмки
 
 - `make install && make gen && make check` — зелёные. `type: ignore` вне gen/ есть только в `packages/stand_core/tests/test_rpc.py`: тесты нарочно объявляют хэндлеры без аннотаций (`no-untyped-def`) и вызывают декорированный хэндлер с `context=None` (`arg-type`), чтобы проверить, что декоратор `rpc` отвергает такие функции при импорте. Без этих функций проверку не написать, поэтому исключение оставлено.
-- `make check && make test` зелёные на 3.12 и 3.14 (497 тестов). Для 3.14 нужен обычный CPython, а не free-threaded `3.14t`: у grpcio и grpcio-tools нет колёс под `cp314t`, и сборка из исходников падает. uv может выбрать `3.14t`, если он установлен (`uv python find 3.14` это покажет), поэтому версию лучше указать точно, например `PYTHON=3.14.2`.
+- `make check && make test` зелёные на 3.12 и 3.14 (497 тестов). Для 3.14 нужен обычный CPython, а не free-threaded `3.14t`: у grpcio и grpcio-tools нет колёс под `cp314t`, и сборка из исходников падает. uv может выбрать `3.14t`, если он установлен (`uv python find 3.14` это покажет), поэтому версию лучше указать точно: `UV_PROJECT_ENVIRONMENT=/tmp/stand-venv-314 PYTHON=3.14.2 make install check test` (см. §2).
 - Образ собирается с `PYTHON_VERSION=3.12` и `3.14` (python:3.12.15-slim и python:3.14.9-slim); на обоих образах `make up` поднимает все контейнеры healthy, и smoke проходит (`PYTHON_VERSION=3.14 make up && make smoke`).
 - Покрытие — `make cov` (pytest-cov по stand_core и пакетам сервисов, `--cov-fail-under=80`): всего 96,5%, stand_core — 84–100% по модулям, хэндлеры — 97–100%. Не покрыты только `main.py` сервисов (запуск процесса проверяется smoke и healthcheck в compose).
 
@@ -193,3 +193,12 @@
 - README — для того, кто поднимает стенд: запуск, порты, схема, команды, цифры `make stats` (из §17), как добавить сервис. `docs/api.md` — справочник для авторов тестов курса: Auth, metadata, коды и details по каждому методу, отличия catalog v1/v2, REST gateway и маппинг кодов. Почему сделано именно так — только здесь, api.md ссылается на decisions.md, а не повторяет обоснования.
 - Пример в README ищет по категории `books`, а не по тексту: названия сидов русские.
 - `CLAUDE.md` — короткая шпаргалка соглашений (команды, именование хэндлеров, шаблон `main.py`); шаблон в нём — копия `services/catalog/src/catalog_service/main.py`, при изменении менять оба.
+
+## 20. Исправления по код-ревью
+
+- Неожиданное (не доменное) исключение при авторизации, например недоступный Redis при чтении сессии, → `INTERNAL: Internal error`, как в ExceptionHandling, а не `UNKNOWN`: AuthInterceptor стоит снаружи ExceptionHandling (§9) и раньше пропускал такие ошибки в grpc. `UNKNOWN` остаётся только у антипримера `LegacyResetPassword`.
+- Checkout снимает резерв (§13) и тогда, когда вызов отменён клиентом или истёк его deadline: `ReleaseStock` защищён от отмены (`asyncio.shield`), иначе резерв оставался висеть.
+- Недоступный catalog в `GetCart`, `AddCartItem`, `RemoveCartItem` и `Checkout` → `UNAVAILABLE` + `ErrorInfo(DEPENDENCY_UNAVAILABLE, dependency=catalog)`. Раньше параллельные `GetProduct` в `TaskGroup` заворачивали `DependencyUnavailable` в `ExceptionGroup`, и клиент получал `INTERNAL`.
+- Offset в `page_token` ограничен сверху: огромный offset → `INVALID_ARGUMENT` «invalid page token» + `BadRequest(pagination.page_token)`, как у битого токена (§10).
+- ConfirmEmail без кода в Redis → `NOT_FOUND` с описанием «expired or never issued», без совета «sign up again»: повторный SignUp на уже зарегистрированный email даёт `ALREADY_EXISTS`.
+- gateway проверяет диапазоны полей proto (`page_size` ≤ int32, `quantity` и цены в пределах int64): значение вне диапазона → 422, а не 500 из конструктора protobuf. Остальную валидацию (например, `quantity > 0`) по-прежнему делает сервис.

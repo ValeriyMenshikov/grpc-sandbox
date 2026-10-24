@@ -1,3 +1,4 @@
+import asyncio
 from unittest.mock import Mock
 
 import pytest
@@ -207,6 +208,41 @@ async def test_failure_after_reserve_releases_stock(
     assert idempotency.records == {}
 
 
+class HangingCatalog(FakeCatalog):
+    """Catalog, который не отвечает, пока вызов не отменят."""
+
+    def __init__(self, catalog: FakeCatalog) -> None:
+        super().__init__(catalog.products.values())
+        self.called = asyncio.Event()
+
+    async def get_product(self, product_id: str) -> None:
+        self.called.set()
+        await asyncio.Event().wait()
+
+
+async def test_cancel_after_reserve_releases_stock(
+    carts: FakeCarts,
+    catalog: FakeCatalog,
+    idempotency: FakeIdempotency,
+    repository: FakeRepository,
+    stock: FakeStock,
+    settings: OrderSettings,
+) -> None:
+    carts.carts[BUYER_ID] = {"p-1": 1}
+    hanging = HangingCatalog(catalog)
+    call = Checkout(carts, idempotency, repository, stock, hanging, settings)
+
+    task = asyncio.create_task(call())
+    await hanging.called.wait()
+    task.cancel()
+    with pytest.raises(asyncio.CancelledError):
+        await task
+
+    [(order_id, _)] = stock.reserve_calls
+    assert stock.quietly_released == [order_id]
+    assert repository.orders == {}
+
+
 async def test_key_in_progress_is_failed_precondition(
     call: Checkout, idempotency: FakeIdempotency, stock: FakeStock
 ) -> None:
@@ -256,4 +292,22 @@ async def test_lost_claim_race_returns_winner_order(
     response = await call()
 
     assert response.order.order_id == winner.order_id
+    assert stock.reserve_calls == []
+
+
+async def test_lost_claim_race_without_winner_order_is_busy(
+    carts: FakeCarts,
+    repository: FakeRepository,
+    stock: FakeStock,
+    catalog: FakeCatalog,
+    settings: OrderSettings,
+) -> None:
+    carts.carts[BUYER_ID] = {"p-1": 1}
+    # Ключ занят заказом, которого уже нет в базе: повторять надо позже, резерва нет
+    call = Checkout(carts, RacingIdempotency("vanished"), repository, stock, catalog, settings)
+
+    with pytest.raises(FailedPrecondition) as info:
+        await call()
+
+    assert info.value.message == "Idempotency key is busy, retry"
     assert stock.reserve_calls == []

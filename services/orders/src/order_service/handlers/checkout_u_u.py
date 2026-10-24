@@ -1,3 +1,4 @@
+import asyncio
 import uuid
 from collections.abc import Mapping
 
@@ -62,6 +63,11 @@ async def replayed_order(
     return order
 
 
+async def release_reserve(stock: StockClient, order_id: str) -> None:
+    """Снять резерв так, чтобы отмена вызова (клиент ушёл, истёк deadline) его не оборвала."""
+    await asyncio.shield(stock.release_quietly(order_id))
+
+
 async def place_order(
     order_id: str,
     user_id: str,
@@ -74,9 +80,9 @@ async def place_order(
     try:
         # Нехватка и неизвестный товар — FailedPrecondition с деталями catalog, резерва нет
         await stock.reserve(order_id, cart)
-    except DependencyUnavailable:
-        # Catalog мог успеть зарезервировать, а ответ не дошёл до deadline
-        await stock.release_quietly(order_id)
+    except (DependencyUnavailable, asyncio.CancelledError):
+        # Catalog мог успеть зарезервировать, а ответ не дошёл до deadline или вызов отменён
+        await release_reserve(stock, order_id)
         raise
     try:
         products = await catalog.get_products(cart)
@@ -98,8 +104,9 @@ async def place_order(
             for product_id, quantity in cart.items()
         ]
         return await repository.create_order(order_id, user_id, items)
-    except Exception:
-        await stock.release_quietly(order_id)
+    except BaseException:
+        # BaseException: отмена (CancelledError) тоже не должна оставить резерв навсегда
+        await release_reserve(stock, order_id)
         raise
 
 

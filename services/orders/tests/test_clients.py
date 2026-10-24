@@ -89,6 +89,9 @@ async def test_get_product_when_catalog_is_broken(
 
     with pytest.raises(DependencyUnavailable):
         await catalog_client.get_product("p-1")
+    # Параллельные GetProduct: ошибка соседа как есть, не ExceptionGroup
+    with pytest.raises(DependencyUnavailable):
+        await catalog_client.get_products(["p-1", "p-2"])
 
 
 async def test_reserve_and_release(stock_client: StockClient, seen: Seen) -> None:

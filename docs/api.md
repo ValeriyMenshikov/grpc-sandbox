@@ -134,8 +134,8 @@
 
 | Метод | Тип | Поведение | Ошибки |
 |---|---|---|---|
-| `AddCartItem` | unary | Прибавляет `quantity` к позиции в Redis `cart:{user_id}`; остаток не проверяет. Возвращает корзину. | пустой `product_id`, `quantity <= 0` → `INVALID_ARGUMENT`; товара нет в catalog → `NOT_FOUND` |
-| `RemoveCartItem` | unary | Удаляет позицию целиком. | позиции нет → `NOT_FOUND` (`ResourceInfo` cart_item) |
+| `AddCartItem` | unary | Прибавляет `quantity` к позиции в Redis `cart:{user_id}`; остаток не проверяет. Возвращает корзину. | пустой `product_id`, `quantity <= 0` → `INVALID_ARGUMENT`; товара нет в catalog → `NOT_FOUND`; catalog недоступен → `UNAVAILABLE` |
+| `RemoveCartItem` | unary | Удаляет позицию целиком. | позиции нет → `NOT_FOUND` (`ResourceInfo` cart_item); catalog недоступен → `UNAVAILABLE` |
 | `GetCart` | unary | Позиции с актуальными названием, ценой (`unit_price`) и остатком (`available`) из catalog, `total`. Пропавшие из catalog товары в ответ не попадают. | catalog недоступен → `UNAVAILABLE` |
 | `Checkout` | unary | `idempotency-key` → резерв `StockService.ReserveStock` (с пробросом deadline и `x-request-id`) → снимок цен → заказ `ORDER_STATUS_CREATED` → корзина очищается. Повтор с тем же ключом — тот же заказ в текущем статусе. | нет/пустой/длинный `idempotency-key` → `INVALID_ARGUMENT`; пустая корзина → `FAILED_PRECONDITION` (`CART_EMPTY`); нехватка → `FAILED_PRECONDITION` с деталями от catalog как есть; параллельный повтор → `FAILED_PRECONDITION` (`CHECKOUT_IN_PROGRESS`); catalog недоступен или не ответил в срок → `UNAVAILABLE` (`DEPENDENCY_UNAVAILABLE`, dependency=catalog), заказ не создаётся. При любой ошибке ключ освобождается |
 | `GetOrder` | unary | Заказ по `order_id`. | пустой id → `INVALID_ARGUMENT`; чужой или нет → `NOT_FOUND` (неразличимо) |

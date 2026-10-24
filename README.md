@@ -31,6 +31,8 @@ grpcurl -plaintext -H 'x-api-key: stand-secret-key' \
   localhost:50052 catalog.v1.CatalogService/SearchProducts
 ```
 
+`make smoke` берёт адреса только из окружения процесса, `.env` он не читает: по умолчанию хост `localhost` (`STAND_HOST`) и порты из `.env.example`. Если порты в `.env` изменены, экспортируйте его перед запуском — `set -a; . ./.env; set +a; make smoke`. Redis для чтения кода подтверждения — `redis://$STAND_HOST:$REDIS_PORT/0`, переопределяется целиком через `SMOKE_REDIS_URL`.
+
 Остановить и удалить данные — `make down`, пересоздать с чистыми данными — `make reset`.
 
 ## Компоненты и порты
@@ -43,7 +45,7 @@ grpcurl -plaintext -H 'x-api-key: stand-secret-key' \
 | order-service | 50053 | gRPC | Корзина, оформление заказа, заказы, отслеживание доставки |
 | support-service | 50054 | gRPC | Чат покупателя с поддержкой по заказу |
 | postgres | 5432 | SQL | Одна БД `stand` (`stand`/`stand`), схема на сервис: `users`, `catalog`, `orders`, `support` |
-| redis | 6379 | RESP | Коды подтверждения, сессии, корзины, ключи идемпотентности, pub/sub статусов заказов |
+| redis | 6379 | RESP | Коды подтверждения (user-service); сессии `session:{token}` читают все gRPC-сервисы (AuthInterceptor); корзины, ключи идемпотентности, pub/sub статусов заказов (order-service) |
 
 Порты, ключи и задержки задаются в `.env` (см. `.env.example`). Ключ сервиса-клиента `x-api-key` — `stand-secret-key`; продавец-сид — `seller@stand.local` / `seller-password`.
 
@@ -51,11 +53,11 @@ grpcurl -plaintext -H 'x-api-key: stand-secret-key' \
 
 ```
 Браузер ──HTTP/JSON──> gateway (BFF) ──gRPC──> user-service ───────────────> Postgres, Redis
-                                     ├─gRPC──> catalog-service ─────────────> Postgres
+                                     ├─gRPC──> catalog-service ─────────────> Postgres, Redis
                                      └─gRPC──> order-service ──gRPC──> catalog-service (StockService)
                                                     └──> Postgres, Redis
                приложение поддержки ──gRPC──> support-service ──gRPC──> order-service
-                                                    └──> Postgres
+                                                    └──> Postgres, Redis
 Автотесты курса ──gRPC──> любой сервис;  ──SQL/Redis──> проверки состояния
 ```
 
@@ -95,7 +97,7 @@ docker/Dockerfile  один образ для всех Python-сервисов
 | `make reset` | `down` + `up` |
 | `make logs` / `make ps` / `make stats` | логи, статус, память контейнеров |
 
-Другая версия Python: `PYTHON=3.14 make install check test`, образ — `PYTHON_VERSION=3.14 make up` (поддерживаются 3.12 и 3.14).
+Другая версия Python: `UV_PROJECT_ENVIRONMENT=/tmp/stand-venv-314 PYTHON=3.14.2 make install check test` — отдельный venv, `.venv` на 3.12 не трогается; нужен обычный CPython, а не free-threaded `3.14t` (под него нет колёс grpcio-tools). Образ — `PYTHON_VERSION=3.14 make up` (поддерживаются 3.12 и 3.14).
 
 ## Память (`make stats`)
 

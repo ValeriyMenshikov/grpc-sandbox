@@ -11,7 +11,7 @@ from catalog.v1 import catalog_pb2
 from common.v1 import money_pb2
 from google.protobuf.timestamp_pb2 import Timestamp
 from orders.v1 import orders_pb2
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from users.v1 import users_pb2
 
 CURRENCY = "RUB"
@@ -54,7 +54,8 @@ class SignInIn(BaseModel):
 
 class AddCartItemIn(BaseModel):
     product_id: str
-    quantity: int = 1
+    # Проверку quantity > 0 делает order-service; здесь — только диапазон int64 из proto
+    quantity: int = Field(default=1, ge=-(2**63), le=2**63 - 1)
 
 
 # --- Ответы ---

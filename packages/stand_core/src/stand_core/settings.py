@@ -34,7 +34,6 @@ class Settings(BaseSettings, Client):
 
     log_level: str = "INFO"
     stand_api_key: str
-    grpc_port: int = 50051
     shutdown_grace_seconds: float = 5.0
     connect_timeout_seconds: float = 10.0
     grpc_default_deadline_seconds: float = 5.0

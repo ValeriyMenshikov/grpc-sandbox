@@ -371,6 +371,23 @@ async def test_closed_stream_leaves_hub(
     assert hub._sessions == {}
 
 
+async def test_cancelled_stream_leaves_hub(
+    requests: RequestStream,
+    context: Mock,
+    hub: ChatHub,
+    orders: FakeOrders,
+    settings: SupportSettings,
+) -> None:
+    stream = open_chat(requests, context, hub, orders, settings)
+    requests.join("o-1")
+    assert kind(await next_event(stream)) == "joined"
+
+    # Клиент оборвал стрим без half-close
+    await stream.aclose()
+
+    assert hub._sessions == {}
+
+
 async def test_message_in_joined_is_not_repeated_from_queue(
     hub: ChatHub, orders: FakeOrders, repository: FakeRepository
 ) -> None:
