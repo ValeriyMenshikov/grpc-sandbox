@@ -1,0 +1,86 @@
+syntax = "proto3";
+
+package support.v1;
+
+import "common/v1/money.proto";
+import "google/protobuf/timestamp.proto";
+
+// Чат покупателя с поддержкой по заказу. Порт 50054. Все методы — Auth: user.
+service SupportService {
+  // Bidi stream. Первым входящим — join, иначе FAILED_PRECONDITION. Потоки независимы:
+  // сервер пишет сам (agent_typing, приветствие оператора), не дожидаясь клиента.
+  // Простой SUPPORT_IDLE_TIMEOUT_S → OK с trailing metadata x-close-reason: idle.
+  rpc Chat(stream ChatRequest) returns (stream ChatResponse);
+  // История чата по заказу, пагинация.
+  rpc GetChatHistory(GetChatHistoryRequest) returns (GetChatHistoryResponse);
+}
+
+enum Author {
+  AUTHOR_UNSPECIFIED = 0;
+  AUTHOR_CUSTOMER = 1;
+  AUTHOR_AGENT = 2;
+  AUTHOR_BOT = 3;
+}
+
+message ChatMessage {
+  string message_id = 1;
+  Author author = 2;
+  string text = 3;
+  google.protobuf.Timestamp created_at = 4;
+}
+
+message Join {
+  string order_id = 1;
+}
+
+message ClientMessage {
+  // Идентификатор, выданный клиентом; возвращается в Ack.
+  string client_message_id = 1;
+  string text = 2;
+}
+
+message Read {
+  string message_id = 1;
+}
+
+message ChatRequest {
+  oneof payload {
+    Join join = 1;
+    ClientMessage message = 2;
+    Read read = 3;
+  }
+}
+
+message Joined {
+  string chat_id = 1;
+  // Последние сообщения чата, старые первыми.
+  repeated ChatMessage last_messages = 2;
+}
+
+message Ack {
+  string client_message_id = 1;
+  string message_id = 2;
+  google.protobuf.Timestamp created_at = 3;
+}
+
+message AgentTyping {}
+
+message ChatResponse {
+  oneof payload {
+    Joined joined = 1;
+    Ack ack = 2;
+    ChatMessage message = 3;
+    AgentTyping agent_typing = 4;
+  }
+}
+
+message GetChatHistoryRequest {
+  string order_id = 1;
+  common.v1.Pagination pagination = 2;
+}
+
+message GetChatHistoryResponse {
+  string chat_id = 1;
+  repeated ChatMessage messages = 2;
+  string next_page_token = 3;
+}

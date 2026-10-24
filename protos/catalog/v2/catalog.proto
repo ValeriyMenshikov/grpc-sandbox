@@ -1,0 +1,61 @@
+syntax = "proto3";
+
+package catalog.v2;
+
+import "common/v1/money.proto";
+import "google/protobuf/timestamp.proto";
+
+// Новая версия контракта каталога. Обслуживается на том же порту, что catalog.v1 (50052).
+// Отличия от v1 (материал для уроков про обратную совместимость и buf breaking):
+// - Product.price_kopecks (поле 6) удалён без reserved, вместо него common.v1.Money price под номером 10;
+// - SearchProductsRequest.region_id обязателен;
+// - только GetProduct и SearchProducts.
+service CatalogService {
+  // Auth: service. NOT_FOUND, если товара нет.
+  rpc GetProduct(GetProductRequest) returns (GetProductResponse);
+  // Auth: service. Пустой region_id → INVALID_ARGUMENT.
+  rpc SearchProducts(SearchProductsRequest) returns (SearchProductsResponse);
+}
+
+message Product {
+  string product_id = 1;
+  string seller_id = 2;
+  string offer_id = 3;
+  string name = 4;
+  string category = 5;
+  int64 stock = 7;
+  google.protobuf.Timestamp created_at = 8;
+  google.protobuf.Timestamp updated_at = 9;
+  common.v1.Money price = 10;
+}
+
+message GetProductRequest {
+  string product_id = 1;
+}
+
+message GetProductResponse {
+  Product product = 1;
+}
+
+enum SortOrder {
+  SORT_ORDER_UNSPECIFIED = 0;
+  SORT_ORDER_PRICE_ASC = 1;
+  SORT_ORDER_PRICE_DESC = 2;
+  SORT_ORDER_NEWEST = 3;
+}
+
+message SearchProductsRequest {
+  string query = 1;
+  optional string category = 2;
+  SortOrder sort = 5;
+  common.v1.Pagination pagination = 6;
+  // Обязательный регион покупателя.
+  string region_id = 7;
+  common.v1.Money min_price = 8;
+  common.v1.Money max_price = 9;
+}
+
+message SearchProductsResponse {
+  repeated Product products = 1;
+  string next_page_token = 2;
+}

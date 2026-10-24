@@ -1,0 +1,117 @@
+syntax = "proto3";
+
+package users.v1;
+
+import "google/protobuf/field_mask.proto";
+import "google/protobuf/timestamp.proto";
+
+// Регистрация, подтверждение email, вход и профиль пользователя. Порт 50051.
+service UserService {
+  // Auth: service. Создаёт пользователя в статусе PENDING, код подтверждения — в Redis confirm:{email}.
+  rpc SignUp(SignUpRequest) returns (SignUpResponse);
+  // Auth: service. Подтверждает email кодом из SignUp.
+  rpc ConfirmEmail(ConfirmEmailRequest) returns (ConfirmEmailResponse);
+  // Auth: service. Выдаёт access_token (Redis session:{token}).
+  rpc SignIn(SignInRequest) returns (SignInResponse);
+  // Auth: user. Удаляет текущую сессию.
+  rpc SignOut(SignOutRequest) returns (SignOutResponse);
+  // Auth: user. Профиль текущего пользователя.
+  rpc GetMe(GetMeRequest) returns (GetMeResponse);
+  // Auth: user. Частичное обновление профиля через update_mask (display_name, phone).
+  rpc UpdateProfile(UpdateProfileRequest) returns (UpdateProfileResponse);
+  // Auth: service. НАМЕРЕННЫЙ АНТИПРИМЕР: любая ошибка валидации → UNKNOWN "Validation failed" без details.
+  rpc LegacyResetPassword(LegacyResetPasswordRequest) returns (LegacyResetPasswordResponse);
+}
+
+enum UserRole {
+  USER_ROLE_UNSPECIFIED = 0;
+  USER_ROLE_BUYER = 1;
+  USER_ROLE_SELLER = 2;
+}
+
+enum UserStatus {
+  USER_STATUS_UNSPECIFIED = 0;
+  // Зарегистрирован, email не подтверждён.
+  USER_STATUS_PENDING = 1;
+  // Email подтверждён, вход разрешён.
+  USER_STATUS_ACTIVE = 2;
+}
+
+message User {
+  string user_id = 1;
+  string email = 2;
+  string display_name = 3;
+  optional string phone = 4;
+  UserRole role = 5;
+  UserStatus status = 6;
+  google.protobuf.Timestamp created_at = 7;
+  google.protobuf.Timestamp updated_at = 8;
+}
+
+message SignUpRequest {
+  string email = 1;
+  // Не короче 8 символов.
+  string password = 2;
+  string display_name = 3;
+  // USER_ROLE_UNSPECIFIED трактуется как USER_ROLE_BUYER.
+  UserRole role = 4;
+}
+
+message SignUpResponse {
+  User user = 1;
+}
+
+message ConfirmEmailRequest {
+  string email = 1;
+  // 6-значный код из Redis confirm:{email}.
+  string code = 2;
+}
+
+message ConfirmEmailResponse {
+  User user = 1;
+}
+
+message SignInRequest {
+  string email = 1;
+  string password = 2;
+}
+
+message SignInResponse {
+  // Передаётся дальше в metadata authorization: Bearer <access_token>.
+  string access_token = 1;
+  google.protobuf.Timestamp expires_at = 2;
+  User user = 3;
+}
+
+message SignOutRequest {}
+
+message SignOutResponse {}
+
+message GetMeRequest {}
+
+message GetMeResponse {
+  User user = 1;
+}
+
+// Редактируемая часть профиля.
+message Profile {
+  string display_name = 1;
+  optional string phone = 2;
+}
+
+message UpdateProfileRequest {
+  Profile profile = 1;
+  // Пути относительно profile: "display_name", "phone". Неизвестный путь → INVALID_ARGUMENT.
+  google.protobuf.FieldMask update_mask = 2;
+}
+
+message UpdateProfileResponse {
+  User user = 1;
+}
+
+message LegacyResetPasswordRequest {
+  string email = 1;
+  string new_password = 2;
+}
+
+message LegacyResetPasswordResponse {}

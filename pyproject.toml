@@ -4,7 +4,7 @@ version = "0.1.0"
 description = "Учебный gRPC-стенд маркетплейса"
 readme = "README.md"
 requires-python = ">=3.12"
-dependencies = ["stand-core"]
+dependencies = ["stand-core", "stand-protos"]
 
 [dependency-groups]
 dev = [
@@ -16,16 +16,19 @@ dev = [
     "pytest-asyncio>=0.24",
     "pytest-cov>=6.0",
     "ruff>=0.8",
+    "types-grpcio>=1.0",
+    "types-protobuf>=5.28",
 ]
 
 [tool.uv]
 package = false
 
 [tool.uv.workspace]
-members = ["packages/*", "services/*"]
+members = ["gen", "packages/*", "services/*"]
 
 [tool.uv.sources]
 stand-core = { workspace = true }
+stand-protos = { workspace = true }
 
 [tool.ruff]
 target-version = "py312"
@@ -41,7 +44,7 @@ strict = true
 plugins = ["nuke_di.mypy"]
 exclude = ["^gen/"]
 explicit_package_bases = true
-mypy_path = ["packages/stand_core/src"]
+mypy_path = ["packages/stand_core/src", "gen"]
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"

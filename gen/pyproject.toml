@@ -1,0 +1,17 @@
+[project]
+name = "stand-protos"
+version = "0.1.0"
+description = "Сгенерированный из protos/ код (make gen). Руками не править."
+requires-python = ">=3.12"
+# Нижние границы = версии, которыми сгенерирован код: gencode проверяет рантайм при импорте
+dependencies = [
+    "grpcio>=1.84.1",
+    "protobuf>=7.35.1",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["common", "users", "catalog", "orders", "support"]

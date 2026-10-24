@@ -52,15 +52,15 @@
 - Create: `protos/common/v1/money.proto`, `protos/users/v1/users.proto`, `protos/catalog/v1/catalog.proto`, `protos/catalog/v2/catalog.proto`, `protos/orders/v1/orders.proto`, `protos/support/v1/support.proto`
 - Create: `gen/**` (сгенерированный код в git), `gen` как пакет workspace или путь в sys.path
 - Modify: `Makefile` (цель gen: grpc_tools.protoc --python_out --pyi_out --grpc_python_out + mypy-protobuf)
-- [ ] common.v1: Money (units, nanos, currency_code), Pagination
-- [ ] users.v1 UserService: SignUp, ConfirmEmail, SignIn, SignOut, GetMe, UpdateProfile (FieldMask), LegacyResetPassword; роли BUYER/SELLER, статусы пользователя
-- [ ] catalog.v1: CatalogService (GetProduct, SearchProducts, ImportProducts client-stream с заголовком в oneof, ExportProducts server-stream c updated_since), StockService (GetStock, ReserveStock, ReleaseStock); Product.price_kopecks int64
-- [ ] catalog.v2 CatalogService: GetProduct, SearchProducts с обязательным region_id; price — common.v1.Money под другим номером поля, price_kopecks удалён без reserved
-- [ ] orders.v1 OrderService: корзина, Checkout, GetOrder, ListOrders (фильтр по статусу, пагинация), CancelOrder, TrackOrder; enum статусов CREATED..DELIVERED, CANCELLED
-- [ ] support.v1 SupportService: Chat (oneof входящих join/message/read и исходящих joined/ack/message/agent_typing), GetChatHistory
-- [ ] make gen, сгенерированный код закоммитить; ruff и mypy исключают gen/
-- [ ] тест: все _pb2 импортируются, нужные сервисы и методы есть в пуле дескрипторов с правильными флагами стриминга
-- [ ] make check && make test — зелёные
+- [x] common.v1: Money (units, nanos, currency_code), Pagination
+- [x] users.v1 UserService: SignUp, ConfirmEmail, SignIn, SignOut, GetMe, UpdateProfile (FieldMask), LegacyResetPassword; роли BUYER/SELLER, статусы пользователя
+- [x] catalog.v1: CatalogService (GetProduct, SearchProducts, ImportProducts client-stream с заголовком в oneof, ExportProducts server-stream c updated_since), StockService (GetStock, ReserveStock, ReleaseStock); Product.price_kopecks int64
+- [x] catalog.v2 CatalogService: GetProduct, SearchProducts с обязательным region_id; price — common.v1.Money под другим номером поля, price_kopecks удалён без reserved
+- [x] orders.v1 OrderService: корзина, Checkout, GetOrder, ListOrders (фильтр по статусу, пагинация), CancelOrder, TrackOrder; enum статусов CREATED..DELIVERED, CANCELLED
+- [x] support.v1 SupportService: Chat (oneof входящих join/message/read и исходящих joined/ack/message/agent_typing), GetChatHistory
+- [x] make gen, сгенерированный код закоммитить; ruff и mypy исключают gen/
+- [x] тест: все _pb2 импортируются, нужные сервисы и методы есть в пуле дескрипторов с правильными флагами стриминга
+- [x] make check && make test — зелёные
 
 ### Task 3: stand_core — settings, логирование, ошибки, контекст, клиенты Postgres и Redis
 

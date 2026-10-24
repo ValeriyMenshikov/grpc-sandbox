@@ -1,0 +1,165 @@
+syntax = "proto3";
+
+package catalog.v1;
+
+import "common/v1/money.proto";
+import "google/protobuf/timestamp.proto";
+
+// Каталог и поиск, импорт/экспорт товаров продавца. Порт 50052.
+service CatalogService {
+  // Auth: service. NOT_FOUND, если товара нет.
+  rpc GetProduct(GetProductRequest) returns (GetProductResponse);
+  // Auth: service. Поиск с фильтрами и пагинацией; невалидный page_token → INVALID_ARGUMENT.
+  rpc SearchProducts(SearchProductsRequest) returns (SearchProductsResponse);
+  // Auth: seller. Client stream: первым — header, дальше строки фида. Ответ — отчёт об импорте.
+  rpc ImportProducts(stream ImportProductsRequest) returns (ImportProductsResponse);
+  // Auth: seller. Server stream: все товары текущего продавца по одному, trailing metadata x-items-count.
+  rpc ExportProducts(ExportProductsRequest) returns (stream ExportProductsResponse);
+}
+
+// Остатки и резервы. Внутренний сервис, его вызывает order-service.
+service StockService {
+  // Auth: service. Доступный остаток товара.
+  rpc GetStock(GetStockRequest) returns (GetStockResponse);
+  // Auth: service. Атомарный резерв всех позиций под order_id, идемпотентно по order_id.
+  // Нехватка → FAILED_PRECONDITION + PreconditionFailure. Задержка: env STOCK_RESERVE_DELAY_MS, metadata x-debug-delay-ms.
+  rpc ReserveStock(ReserveStockRequest) returns (ReserveStockResponse);
+  // Auth: service. Снятие резерва по order_id, идемпотентно.
+  rpc ReleaseStock(ReleaseStockRequest) returns (ReleaseStockResponse);
+}
+
+message Product {
+  string product_id = 1;
+  string seller_id = 2;
+  // Артикул продавца, уникален в рамках продавца.
+  string offer_id = 3;
+  string name = 4;
+  string category = 5;
+  // Цена в копейках. В catalog.v2 заменена на common.v1.Money price.
+  int64 price_kopecks = 6;
+  // Доступный остаток (без резервов).
+  int64 stock = 7;
+  google.protobuf.Timestamp created_at = 8;
+  google.protobuf.Timestamp updated_at = 9;
+}
+
+message GetProductRequest {
+  string product_id = 1;
+}
+
+message GetProductResponse {
+  Product product = 1;
+}
+
+enum SortOrder {
+  // По названию.
+  SORT_ORDER_UNSPECIFIED = 0;
+  SORT_ORDER_PRICE_ASC = 1;
+  SORT_ORDER_PRICE_DESC = 2;
+  // Сначала недавно обновлённые.
+  SORT_ORDER_NEWEST = 3;
+}
+
+message SearchProductsRequest {
+  // Подстрока в названии, без учёта регистра. Пусто — все товары.
+  string query = 1;
+  optional string category = 2;
+  optional int64 min_price_kopecks = 3;
+  optional int64 max_price_kopecks = 4;
+  SortOrder sort = 5;
+  common.v1.Pagination pagination = 6;
+}
+
+message SearchProductsResponse {
+  repeated Product products = 1;
+  string next_page_token = 2;
+}
+
+enum ImportMode {
+  IMPORT_MODE_UNSPECIFIED = 0;
+  // Создать новые и обновить существующие по offer_id.
+  IMPORT_MODE_UPSERT = 1;
+  // Только создать; существующий offer_id — ошибка строки.
+  IMPORT_MODE_CREATE_ONLY = 2;
+}
+
+message ImportHeader {
+  ImportMode mode = 1;
+}
+
+message ImportRow {
+  string offer_id = 1;
+  string name = 2;
+  string category = 3;
+  int64 price_kopecks = 4;
+  int64 stock = 5;
+}
+
+message ImportProductsRequest {
+  oneof payload {
+    // Обязательно первым сообщением, иначе INVALID_ARGUMENT.
+    ImportHeader header = 1;
+    ImportRow row = 2;
+  }
+}
+
+message ImportRowError {
+  // Номер строки фида, с 1 (заголовок не считается).
+  int32 row_number = 1;
+  // Поле строки с ошибкой, например "price_kopecks".
+  string field = 2;
+  string description = 3;
+}
+
+// Отчёт об импорте. Плохие строки не валят импорт, а попадают в errors.
+message ImportProductsResponse {
+  int32 created = 1;
+  int32 updated = 2;
+  int32 failed = 3;
+  repeated ImportRowError errors = 4;
+}
+
+message ExportProductsRequest {
+  // Только товары, обновлённые не раньше этого момента. Не задано — все товары.
+  google.protobuf.Timestamp updated_since = 1;
+}
+
+message ExportProductsResponse {
+  Product product = 1;
+}
+
+message GetStockRequest {
+  string product_id = 1;
+}
+
+message GetStockResponse {
+  string product_id = 1;
+  // Доступный остаток = остаток - резервы.
+  int64 available = 2;
+}
+
+message StockItem {
+  string product_id = 1;
+  int64 quantity = 2;
+}
+
+message ReserveStockRequest {
+  // Ключ идемпотентности резерва.
+  string order_id = 1;
+  repeated StockItem items = 2;
+}
+
+message ReserveStockResponse {
+  string order_id = 1;
+  repeated StockItem items = 2;
+}
+
+message ReleaseStockRequest {
+  string order_id = 1;
+}
+
+message ReleaseStockResponse {
+  string order_id = 1;
+  // false, если резерва уже не было (повторный вызов).
+  bool released = 2;
+}

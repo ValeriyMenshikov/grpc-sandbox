@@ -4,7 +4,9 @@ UV ?= uv
 PYTHON ?=
 UV_RUN := $(UV) run$(if $(PYTHON), --python $(PYTHON))
 TYPECHECK_PATHS := $(wildcard packages services tests)
-PROTO_FILES := $(shell find protos -name '*.proto' 2>/dev/null)
+PROTO_FILES := $(shell find protos -name '*.proto' 2>/dev/null | sort)
+# Верхнеуровневые пакеты gen/ = каталоги protos/ (pyproject.toml в gen/ не трогаем)
+GEN_PACKAGES := $(addprefix gen/,$(notdir $(wildcard protos/*)))
 
 .PHONY: help install gen format lint typecheck check test smoke up down logs ps stats reset
 
@@ -16,11 +18,13 @@ install: ## Установить зависимости всех пакетов 
 
 gen: ## Сгенерировать код из protos/ в gen/
 	@if [ -z "$(PROTO_FILES)" ]; then echo "protos/ пуст, генерировать нечего"; exit 0; fi
-	rm -rf gen && mkdir -p gen
+	rm -rf $(GEN_PACKAGES)
 	$(UV_RUN) python -m grpc_tools.protoc -I protos \
-		--python_out=gen --pyi_out=gen --grpc_python_out=gen \
+		--python_out=gen --grpc_python_out=gen \
 		--mypy_out=gen --mypy_grpc_out=gen \
 		$(PROTO_FILES)
+	find $(GEN_PACKAGES) -type d -exec touch {}/__init__.py \;
+	for pkg in $(GEN_PACKAGES); do touch $$pkg/py.typed; done
 
 format: ## ruff format + ruff check --fix
 	$(UV_RUN) ruff format .
