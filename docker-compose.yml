@@ -148,5 +148,32 @@ services:
         condition: service_healthy
     healthcheck: *grpc-healthcheck
 
+  gateway:
+    <<: *python-service
+    command: ["python", "-m", "gateway.main"]
+    environment:
+      <<: *common-env
+      HTTP_PORT: 8080
+      USERS_ADDR: ${USERS_ADDR:-users:50051}
+      CATALOG_ADDR: ${CATALOG_ADDR:-catalog:50052}
+      ORDERS_ADDR: ${ORDERS_ADDR:-orders:50053}
+    ports:
+      - "${GATEWAY_PORT:-8080}:8080"
+    depends_on:
+      # Только порядок старта: остановленный позже сервис даёт 503 у его эндпоинтов
+      users:
+        condition: service_healthy
+      catalog:
+        condition: service_healthy
+      orders:
+        condition: service_healthy
+    # HTTP GET /healthz из Python-скрипта в образе, без curl
+    healthcheck:
+      test: ["CMD", "python", "-m", "gateway.healthcheck"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 10s
+
 volumes:
   pgdata:

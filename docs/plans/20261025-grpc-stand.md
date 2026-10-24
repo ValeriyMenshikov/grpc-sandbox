@@ -214,12 +214,12 @@
 - Create: `services/gateway/pyproject.toml`, `services/gateway/src/gateway/{api.py,main.py,clients.py,errors.py}`
 - Create: `services/gateway/tests/...`
 - Modify: `docker-compose.yml`, `.env.example`
-- [ ] FastAPI + nuke_di.fastapi.setup; gRPC-клиенты к users, catalog, orders как nuke-di Client, сами подставляют x-api-key и пробрасывают authorization
-- [ ] эндпоинты: /auth/sign-up, /auth/confirm, /auth/sign-in, /me, /products, /products/{id}, /cart, /cart/items, /cart/items/{product_id}, /checkout (Idempotency-Key), /orders, /orders/{id}
-- [ ] маппинг gRPC-статусов в HTTP-коды
-- [ ] блок в compose (healthcheck по HTTP)
-- [ ] тесты: эндпоинты через httpx/TestClient с замоканными клиентами, маппинг ошибок, проброс заголовков
-- [ ] make check && make test — зелёные
+- [x] FastAPI + nuke_di.fastapi.setup; gRPC-клиенты к users, catalog, orders как nuke-di Client, сами подставляют x-api-key и пробрасывают authorization
+- [x] эндпоинты: /auth/sign-up, /auth/confirm, /auth/sign-in, /me, /products, /products/{id}, /cart, /cart/items, /cart/items/{product_id}, /checkout (Idempotency-Key), /orders, /orders/{id}
+- [x] маппинг gRPC-статусов в HTTP-коды
+- [x] блок в compose (healthcheck по HTTP)
+- [x] тесты: эндпоинты через httpx/TestClient с замоканными клиентами, маппинг ошибок, проброс заголовков
+- [x] make check && make test — зелёные
 
 ### Task 13: Smoke-сценарий против поднятого стенда и замер памяти
 

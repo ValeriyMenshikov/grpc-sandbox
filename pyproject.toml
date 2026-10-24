@@ -51,7 +51,7 @@ plugins = ["nuke_di.mypy"]
 exclude = ["^gen/"]
 explicit_package_bases = true
 # Каждый новый сервис добавляет сюда свой src/
-mypy_path = ["packages/stand_core/src", "services/catalog/src", "services/users/src", "services/orders/src", "services/support/src", "gen"]
+mypy_path = ["packages/stand_core/src", "services/catalog/src", "services/users/src", "services/orders/src", "services/support/src", "services/gateway/src", "gen"]
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
@@ -59,6 +59,8 @@ asyncio_default_fixture_loop_scope = "function"
 addopts = "--import-mode=importlib -m 'not stand'"
 testpaths = ["packages", "services", "tests"]
 markers = ["stand: smoke-тесты против поднятого стенда (make up)"]
+# starlette советует httpx2 вместо httpx в TestClient; ТЗ и план тестируют gateway через httpx
+filterwarnings = ["ignore:Using `httpx` with `starlette.testclient` is deprecated"]
 
 # googleapis-common-protos поставляет .pyi без py.typed: разрешаем mypy их читать
 [[tool.mypy.overrides]]
