@@ -124,7 +124,7 @@
 | Регион | нет | `string region_id = 7`, **обязателен**: пустой или из пробелов → `INVALID_ARGUMENT`; на выдачу пока не влияет |
 | Методы | `GetProduct`, `SearchProducts`, `ImportProducts`, `ExportProducts` | только `GetProduct`, `SearchProducts` |
 
-`Money` в фильтрах v2: только `RUB` (пустой `currency_code` = RUB), неотрицательная, `nanos` кратны 10⁷ (копейки); нарушения → `INVALID_ARGUMENT` с полем (`min_price.currency_code`, `max_price.nanos`, ...). Токены пагинации v1 и v2 совместимы.
+`Money` в фильтрах v2: только `RUB` (пустой `currency_code` = RUB), неотрицательная, `nanos` кратны 10⁷ (копейки); сумма не больше предела bigint в копейках; нарушения → `INVALID_ARGUMENT` с полем (`min_price.currency_code`, `max_price.nanos`, `max_price.units`, ...). Токены пагинации v1 и v2 совместимы.
 
 Чем это интересно курсу: клиент v1, прочитавший товар v2 (и наоборот), молча получит цену 0 — номер поля другой, а удалённый номер не зарезервирован. `buf breaking` такое ловит.
 

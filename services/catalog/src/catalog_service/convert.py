@@ -13,6 +13,8 @@ from catalog_service.models import Product
 CURRENCY = "RUB"
 NANOS_PER_KOPECK = 10_000_000
 KOPECKS_PER_UNIT = 100
+# Предел bigint: суммы больше не помещаются в столбцы и параметры Postgres
+MAX_KOPECKS = 2**63 - 1
 
 
 def _timestamp(value: datetime) -> Timestamp:
@@ -65,4 +67,8 @@ def money_to_kopecks(money: money_pb2.Money, field: str) -> tuple[int | None, li
         violations.append(FieldViolation(f"{field}.nanos", "must be whole kopecks below 1e9"))
     if violations:
         return None, violations
-    return money.units * KOPECKS_PER_UNIT + money.nanos // NANOS_PER_KOPECK, []
+    kopecks = money.units * KOPECKS_PER_UNIT + money.nanos // NANOS_PER_KOPECK
+    if kopecks > MAX_KOPECKS:
+        # Иначе сумма не влезет в bigint Postgres и вызов упадёт в INTERNAL
+        return None, [FieldViolation(f"{field}.units", "is too large")]
+    return kopecks, []

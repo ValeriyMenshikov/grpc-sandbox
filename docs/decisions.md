@@ -213,3 +213,9 @@
 
 - Цена товара ограничена 10¹² копеек (`MAX_PRICE_KOPECKS` в `ImportProducts`, `CHECK` в `schema.sql`). Предел количества из §21 сам по себе не держал сумму корзины и заказа в int64: дорогой товар переполнял `Money.units`, и корзина, Checkout, а затем GetOrder/ListOrders по такому заказу отвечали `INTERNAL`. Уже созданная база `CHECK` не получает — `make reset`.
 - scrypt (~16 МБ на хэш) считается в пуле из `MAX_PARALLEL_HASHES = 2` потоков вместо общего пула `asyncio.to_thread`: scrypt отпускает GIL, и всплеск SignIn/SignUp выводил user-service за `mem_limit: 128m`.
+
+## 23. Исправления по четвёртому код-ревью
+
+- `ReserveStock` сначала блокирует строки товаров (`FOR UPDATE`), а остатки читает отдельным запросом после блокировки. В READ COMMITTED строки из `LEFT JOIN catalog.stocks` в одном запросе с `FOR UPDATE OF p` оставались из снимка до ожидания замка: UPSERT-импорт, снизивший остаток, не был виден резерву, и тот резервировал больше, чем есть.
+- `Money` в фильтрах v2 `SearchProducts` больше предела bigint в копейках → `INVALID_ARGUMENT` (`min_price.units`/`max_price.units`), а не `INTERNAL` от Postgres.
+- После создания заказа `commit` ключа идемпотентности и очистка корзины идут под `asyncio.shield`: отмена вызова (ушёл клиент, истёк deadline) не оставляет ключ `pending`, после TTL которого повтор создал бы второй заказ. Потерянный ключ (`commit` вернул False) пишется в лог `orders.idempotency_commit_lost`.

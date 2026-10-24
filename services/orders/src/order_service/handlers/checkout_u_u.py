@@ -13,6 +13,7 @@ from stand_core.grpc import (
     current_user,
     metadata_value,
 )
+from stand_core.logging import get_logger
 
 from order_service.carts import Carts
 from order_service.catalog_client import CatalogClient
@@ -22,6 +23,8 @@ from order_service.models import Order, OrderItem
 from order_service.repository import OrderRepository
 from order_service.settings import OrderSettings
 from order_service.stock_client import StockClient
+
+logger = get_logger(__name__)
 
 IDEMPOTENCY_HEADER = "idempotency-key"
 MAX_IDEMPOTENCY_KEY_LENGTH = 128
@@ -66,6 +69,18 @@ async def replayed_order(
 async def release_reserve(stock: StockClient, order_id: str) -> None:
     """Снять резерв так, чтобы отмена вызова (клиент ушёл, истёк deadline) его не оборвала."""
     await asyncio.shield(stock.release_quietly(order_id))
+
+
+async def finalize(
+    user_id: str, key: str, order_id: str, idempotency: IdempotencyKeys, carts: Carts, ttl_s: int
+) -> None:
+    """Закрепить ключ за созданным заказом и очистить корзину.
+
+    Заказ уже в базе: если ключ останется pending, после его TTL повтор создаст второй заказ.
+    """
+    if not await idempotency.commit(user_id, key, order_id, ttl_s):
+        logger.warning("orders.idempotency_commit_lost", order_id=order_id)
+    await carts.clear(user_id)
 
 
 async def place_order(
@@ -148,6 +163,8 @@ async def checkout(
         # Заказа нет — ключ свободен для повтора (если его ещё держит этот вызов)
         await idempotency.forget(user_id, key, IdempotencyRecord(order_id, pending=True))
         raise
-    await idempotency.commit(user_id, key, order.order_id, settings.idempotency_ttl_s)
-    await carts.clear(user_id)
+    # shield: отмена вызова (ушёл клиент, истёк deadline) не должна оставить ключ pending
+    await asyncio.shield(
+        finalize(user_id, key, order.order_id, idempotency, carts, settings.idempotency_ttl_s)
+    )
     return orders_pb2.CheckoutResponse(order=order_pb(order))

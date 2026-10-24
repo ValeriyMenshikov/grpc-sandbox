@@ -190,3 +190,15 @@ async def test_v2_rejects_bad_money(catalog: FakeRepository, context: Mock) -> N
         "min_price.currency_code",
         "max_price.nanos",
     ]
+
+
+async def test_v2_rejects_money_beyond_bigint(catalog: FakeRepository, context: Mock) -> None:
+    with pytest.raises(InvalidArgument) as info:
+        await search_products_v2(
+            v2.SearchProductsRequest(
+                region_id="msk", max_price=money_pb2.Money(units=100_000_000_000_000_000)
+            ),
+            context,
+            catalog,
+        )
+    assert [v.field for v in info.value.field_violations] == ["max_price.units"]

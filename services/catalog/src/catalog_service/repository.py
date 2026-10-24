@@ -79,13 +79,17 @@ WHERE p.product_id = $1
 
 # Блокировка строк товаров в порядке product_id: параллельные резервы одних товаров
 # выстраиваются в очередь и не ловят deadlock
-_LOCK_STOCKS = """
-SELECT p.product_id, COALESCE(s.quantity, 0) AS quantity
-FROM catalog.products AS p
-LEFT JOIN catalog.stocks AS s ON s.product_id = p.product_id
-WHERE p.product_id = ANY($1::text[])
-ORDER BY p.product_id
-FOR UPDATE OF p
+_LOCK_PRODUCTS = """
+SELECT product_id FROM catalog.products
+WHERE product_id = ANY($1::text[])
+ORDER BY product_id
+FOR UPDATE
+"""
+
+# Остатки читаются отдельным запросом уже после блокировки: в READ COMMITTED строки из JOIN
+# в запросе с FOR UPDATE остались бы из снимка до ожидания замка (импорт мог их изменить)
+_STOCKS = """
+SELECT product_id, quantity FROM catalog.stocks WHERE product_id = ANY($1::text[])
 """
 
 _RESERVED = """
@@ -212,10 +216,11 @@ class CatalogRepository(Client):
                     items=[StockItem(r["product_id"], r["quantity"]) for r in existing],
                     shortages=[],
                 )
-            quantities = {
-                r["product_id"]: r["quantity"]
-                for r in await connection.fetch(_LOCK_STOCKS, product_ids)
+            locked = await connection.fetch(_LOCK_PRODUCTS, product_ids)
+            stocks = {
+                r["product_id"]: r["quantity"] for r in await connection.fetch(_STOCKS, product_ids)
             }
+            quantities = {r["product_id"]: stocks.get(r["product_id"], 0) for r in locked}
             reserved = {
                 r["product_id"]: r["reserved"]
                 for r in await connection.fetch(_RESERVED, product_ids)

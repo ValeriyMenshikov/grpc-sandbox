@@ -336,3 +336,42 @@ async def test_lost_claim_race_without_winner_order_is_busy(
 
     assert info.value.message == "Idempotency key is busy, retry"
     assert stock.reserve_calls == []
+
+
+class SlowCommitIdempotency(FakeIdempotency):
+    """commit() ждёт сигнала: вызов успевают отменить после создания заказа."""
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.committing = asyncio.Event()
+        self.proceed = asyncio.Event()
+
+    async def commit(self, user_id: str, key: str, order_id: str, ttl_seconds: int) -> bool:
+        self.committing.set()
+        await self.proceed.wait()
+        return await super().commit(user_id, key, order_id, ttl_seconds)
+
+
+async def test_cancel_after_order_created_still_commits_key(
+    carts: FakeCarts,
+    repository: FakeRepository,
+    stock: FakeStock,
+    catalog: FakeCatalog,
+    settings: OrderSettings,
+) -> None:
+    carts.carts[BUYER_ID] = {"p-1": 1}
+    idempotency = SlowCommitIdempotency()
+    call = Checkout(carts, idempotency, repository, stock, catalog, settings)
+
+    task = asyncio.create_task(call())
+    await idempotency.committing.wait()
+    task.cancel()
+    idempotency.proceed.set()
+    with pytest.raises(asyncio.CancelledError):
+        await task
+    await asyncio.sleep(0)
+
+    [order_id] = repository.orders
+    assert idempotency.records[BUYER_ID, "key-1"] == IdempotencyRecord(order_id, pending=False)
+    assert BUYER_ID not in carts.carts
+    assert stock.quietly_released == []
