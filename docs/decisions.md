@@ -10,7 +10,7 @@
 
 - Корневой проект `grpc-stand` — виртуальный (`[tool.uv] package = false`), он только держит общие настройки ruff/mypy/pytest и dev-группу.
 - Участники workspace: `packages/*` (stand_core) и `services/*`.
-- `.python-version` = 3.12 — минимальная поддерживаемая версия, на ней идёт локальная разработка. Проверка на 3.14: `make check test PYTHON=3.14`.
+- `.python-version` = 3.12 — минимальная поддерживаемая версия, на ней идёт локальная разработка. Проверка на 3.14 — в отдельном venv, чтобы не пересоздавать `.venv`: `UV_PROJECT_ENVIRONMENT=/tmp/stand-venv-314 make install check test PYTHON=3.14` (подробности — §18).
 
 ## 3. Тесты и smoke
 
@@ -180,3 +180,10 @@
 - Каждый прогон регистрирует нового покупателя (`smoke-<uuid>@stand.local`) и импортирует товар с уникальным `offer_id` `SMOKE-<uuid>`, поэтому smoke можно гонять повторно без `make reset`. Для Checkout берётся книга-сид с наибольшим остатком: остатки сидов убывают от прогона к прогону, но их хватает на десятки прогонов.
 - Сценарии: покупатель (SignUp → код из Redis `confirm:{email}` → ConfirmEmail → SignIn → SearchProducts → AddCartItem → два Checkout с одним `idempotency-key` дают один заказ → TrackOrder до DELIVERED → Chat: joined, agent_typing и приветствие AGENT без запроса клиента, ack и ответ BOT «доставлен»); продавец-сид (ImportProducts с плохой строкой → `failed=1`, ошибка строки 2 по `price_kopecks` → ExportProducts с `updated_since` содержит импорт); DoD — без `x-api-key` → `UNAUTHENTICATED`, ImportProducts покупателем → `PERMISSION_DENIED`, reflection catalog перечисляет `catalog.v1.CatalogService` и `catalog.v2.CatalogService`. Весь smoke — ~11 с, почти всё время — доставка (4 шага по `FULFILLMENT_STEP_MS`).
 - Память (`make stats` сразу после `make up` и smoke, Python 3.12): users ~56 МБ, gateway ~50 МБ, catalog/orders/support ~40 МБ, postgres ~75 МБ, redis ~19 МБ — в сумме ~320 МБ. Сумма `mem_limit` — 960 МБ (5 × 128m + postgres 256m + redis 64m), укладывается в ~1 ГБ; лимиты не меняли.
+
+## 18. Проверка критериев приёмки
+
+- `make install && make gen && make check` — зелёные. `type: ignore` вне gen/ есть только в `packages/stand_core/tests/test_rpc.py`: тесты нарочно объявляют хэндлеры без аннотаций (`no-untyped-def`) и вызывают декорированный хэндлер с `context=None` (`arg-type`), чтобы проверить, что декоратор `rpc` отвергает такие функции при импорте. Без этих функций проверку не написать, поэтому исключение оставлено.
+- `make check && make test` зелёные на 3.12 и 3.14 (497 тестов). Для 3.14 нужен обычный CPython, а не free-threaded `3.14t`: у grpcio и grpcio-tools нет колёс под `cp314t`, и сборка из исходников падает. uv может выбрать `3.14t`, если он установлен (`uv python find 3.14` это покажет), поэтому версию лучше указать точно, например `PYTHON=3.14.2`.
+- Образ собирается с `PYTHON_VERSION=3.12` и `3.14` (python:3.12.15-slim и python:3.14.9-slim); на обоих образах `make up` поднимает все контейнеры healthy, и smoke проходит (`PYTHON_VERSION=3.14 make up && make smoke`).
+- Покрытие — `make cov` (pytest-cov по stand_core и пакетам сервисов, `--cov-fail-under=80`): всего 96,5%, stand_core — 84–100% по модулям, хэндлеры — 97–100%. Не покрыты только `main.py` сервисов (запуск процесса проверяется smoke и healthcheck в compose).

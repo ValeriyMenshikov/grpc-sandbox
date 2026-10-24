@@ -8,7 +8,7 @@ PROTO_FILES := $(shell find protos -name '*.proto' 2>/dev/null | sort)
 # Верхнеуровневые пакеты gen/ = каталоги protos/ (pyproject.toml в gen/ не трогаем)
 GEN_PACKAGES := $(addprefix gen/,$(notdir $(wildcard protos/*)))
 
-.PHONY: help install gen format lint typecheck check test smoke up down logs ps stats reset
+.PHONY: help install gen format lint typecheck check test cov smoke up down logs ps stats reset
 
 help: ## Список целей
 	@grep -E '^[a-z-]+:.*## ' $(MAKEFILE_LIST) | awk -F ':.*## ' '{printf "  %-10s %s\n", $$1, $$2}'
@@ -41,6 +41,11 @@ check: lint typecheck ## lint + typecheck
 
 test: ## Тесты сервисов и stand_core (без smoke)
 	$(UV_RUN) pytest
+
+COV_PACKAGES := stand_core catalog_service user_service order_service support_service gateway
+
+cov: ## Тесты с покрытием stand_core и сервисов
+	$(UV_RUN) pytest $(addprefix --cov=,$(COV_PACKAGES)) --cov-report=term-missing:skip-covered --cov-fail-under=80
 
 smoke: ## Smoke-сценарий против поднятого стенда (make up)
 	$(UV_RUN) pytest -m stand

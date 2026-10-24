@@ -235,11 +235,11 @@
 
 ### Task 14: Verify acceptance criteria
 
-- [ ] make install && make gen && make check — зелёные, нет type: ignore вне gen/ без обоснования
-- [ ] make check && make test на Python 3.12 и 3.14 (uv run --python 3.12 / --python 3.14)
-- [ ] сборка образа с PYTHON_VERSION=3.12 и 3.14
-- [ ] smoke против поднятого стенда зелёный
-- [ ] покрытие тестами stand_core и хэндлеров — 80%+
+- [x] make install && make gen && make check — зелёные, нет type: ignore вне gen/ без обоснования
+- [x] make check && make test на Python 3.12 и 3.14 (uv run --python 3.12 / --python 3.14)
+- [x] сборка образа с PYTHON_VERSION=3.12 и 3.14
+- [x] smoke против поднятого стенда зелёный
+- [x] покрытие тестами stand_core и хэндлеров — 80%+
 
 ### Task 15: Update documentation
 
