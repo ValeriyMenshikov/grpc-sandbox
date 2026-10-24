@@ -51,7 +51,7 @@ plugins = ["nuke_di.mypy"]
 exclude = ["^gen/"]
 explicit_package_bases = true
 # Каждый новый сервис добавляет сюда свой src/
-mypy_path = ["packages/stand_core/src", "services/catalog/src", "services/users/src", "services/orders/src", "gen"]
+mypy_path = ["packages/stand_core/src", "services/catalog/src", "services/users/src", "services/orders/src", "services/support/src", "gen"]
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"

@@ -197,15 +197,15 @@
 - Create: `services/support/src/support_service/handlers/{chat_s_s.py,get_chat_history_u_u.py,__init__.py}`
 - Create: `services/support/tests/...`
 - Modify: `docker-compose.yml`, `.env.example`
-- [ ] OrdersClient (ORDERS_ADDR) с пробросом пользовательского authorization и x-request-id
-- [ ] Chat: join первым (иначе FAILED_PRECONDITION), проверка заказа (чужой/нет → NOT_FOUND), joined с last_messages, ack на каждое message, сохранение в Postgres, read
-- [ ] независимая отправка: через SUPPORT_AGENT_DELAY_MS — agent_typing и приветствие AGENT; чтение входящих и отправка исходящих — отдельные таски, общая очередь
-- [ ] бот на «статус»/«где»: статус из order-service, при DependencyUnavailable — «Не удалось получить статус, попробуйте позже», стрим не рвётся
-- [ ] idle timeout SUPPORT_IDLE_TIMEOUT_S → завершение OK с x-close-reason: idle
-- [ ] GetChatHistory с пагинацией
-- [ ] блок в compose
-- [ ] тесты: unit-тесты Chat с подменой OrdersClient (join не первым, чужой заказ, приветствие без запроса клиента, ответ бота, недоступный order-service, idle), тест wiring'а
-- [ ] make check && make test — зелёные
+- [x] OrdersClient (ORDERS_ADDR) с пробросом пользовательского authorization и x-request-id
+- [x] Chat: join первым (иначе FAILED_PRECONDITION), проверка заказа (чужой/нет → NOT_FOUND), joined с last_messages, ack на каждое message, сохранение в Postgres, read
+- [x] независимая отправка: через SUPPORT_AGENT_DELAY_MS — agent_typing и приветствие AGENT; чтение входящих и отправка исходящих — отдельные таски, общая очередь
+- [x] бот на «статус»/«где»: статус из order-service, при DependencyUnavailable — «Не удалось получить статус, попробуйте позже», стрим не рвётся
+- [x] idle timeout SUPPORT_IDLE_TIMEOUT_S → завершение OK с x-close-reason: idle
+- [x] GetChatHistory с пагинацией
+- [x] блок в compose
+- [x] тесты: unit-тесты Chat с подменой OrdersClient (join не первым, чужой заказ, приветствие без запроса клиента, ответ бота, недоступный order-service, idle), тест wiring'а
+- [x] make check && make test — зелёные
 
 ### Task 12: gateway (BFF)
 
