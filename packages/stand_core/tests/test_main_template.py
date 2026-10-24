@@ -43,7 +43,9 @@ async def test_worker_serves_injected_handlers_and_stops_gracefully() -> None:
                 request_serializer=catalog_pb2.GetProductRequest.SerializeToString,
                 response_deserializer=catalog_pb2.GetProductResponse.FromString,
             )
-            response = await call(catalog_pb2.GetProductRequest(product_id="p1"), timeout=2)
+            unary_call = call(catalog_pb2.GetProductRequest(product_id="p1"), timeout=2)
+            response = await unary_call
+            initial_metadata = await unary_call.initial_metadata()
 
         process.send_signal(signal.SIGTERM)
         stdout, stderr = await asyncio.wait_for(process.communicate(), timeout=10)
@@ -53,6 +55,8 @@ async def test_worker_serves_injected_handlers_and_stops_gracefully() -> None:
             await process.communicate()
 
     assert response.product.name == "connected"
+    assert dict(initial_metadata)["x-request-id"]
+    assert b'"event": "grpc.call"' in stdout
     # nuke-di завершает Run по сигналу кодом 128 + номер сигнала, как это видит shell
     assert process.returncode == 128 + signal.SIGTERM, stderr
     assert b"grpc.server_stopping" in stdout

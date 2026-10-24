@@ -1,4 +1,4 @@
-"""gRPC-часть stand_core: декоратор rpc, сервер, связка с nuke-di, контекст вызова и ошибки."""
+"""gRPC-часть stand_core: rpc, сервер, интерцепторы, связка с nuke-di, контекст вызова и ошибки."""
 
 from stand_core.grpc.context import (
     Context,
@@ -22,8 +22,10 @@ from stand_core.grpc.errors import (
     ResourceExhausted,
     StandError,
     Unauthenticated,
+    abort_with_error,
     build_status,
 )
+from stand_core.grpc.interceptors import AuthPolicy, register_auth_policies
 from stand_core.grpc.rpc import (
     GRPC_HANDLERS,
     GrpcTypeEnum,
@@ -36,6 +38,7 @@ from stand_core.grpc.server import ProtoMismatchError, RunningServer, grpc_serve
 __all__ = (
     "GRPC_HANDLERS",
     "AlreadyExists",
+    "AuthPolicy",
     "Context",
     "CurrentUser",
     "DependencyUnavailable",
@@ -55,11 +58,13 @@ __all__ = (
     "RunningServer",
     "StandError",
     "Unauthenticated",
+    "abort_with_error",
     "build_status",
     "current_user",
     "current_user_or_none",
     "grpc_server",
     "inject_handlers",
+    "register_auth_policies",
     "request_id",
     "resolve_interceptors",
     "rpc",

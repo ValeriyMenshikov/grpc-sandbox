@@ -107,13 +107,13 @@
 - Create: `packages/stand_core/src/stand_core/clients/grpc_client.py` (базовый клиент к соседям)
 - Modify: `packages/stand_core/src/stand_core/grpc/server.py` (если stream_count и exception_handling делаем обёрткой хэндлера)
 - Modify: `docs/decisions.md`
-- [ ] RequestIdInterceptor: x-request-id из metadata или uuid, contextvar, initial metadata в ответ
-- [ ] LoggingInterceptor: одна JSON-строка на вызов (метод, тип, request_id, статус, длительность, число сообщений для стримов)
-- [ ] AuthInterceptor: x-api-key обязателен везде, кроме reflection и health; таблица политик (service/user/seller) передаётся сервисом; Bearer-токен из Redis session:{token} → current_user; seller-методы для покупателя → PERMISSION_DENIED + ErrorInfo(SELLER_ROLE_REQUIRED)
-- [ ] StreamCountInterceptor (x-items-count) и ExceptionHandlingInterceptor (домен → статус + details, прочее → INTERNAL, стек только в лог); если для стримов в grpc.aio это неудобно, делаем обёртку хэндлера в grpc_server и пишем это в decisions.md
-- [ ] базовый клиент к соседям (nuke-di Client): канал grpc.aio, дефолтный deadline, проброс x-request-id, оставшегося deadline и authorization, UNAVAILABLE/DEADLINE_EXCEEDED → DependencyUnavailable, адрес из env
-- [ ] тесты: x-request-id выставляется и пробрасывается; x-items-count в trailing metadata; доменные исключения дают нужные статусы и details; нет x-api-key → UNAUTHENTICATED; роль покупателя на seller-методе → PERMISSION_DENIED; базовый клиент превращает UNAVAILABLE и DEADLINE_EXCEEDED в DependencyUnavailable
-- [ ] make check && make test — зелёные
+- [x] RequestIdInterceptor: x-request-id из metadata или uuid, contextvar, initial metadata в ответ
+- [x] LoggingInterceptor: одна JSON-строка на вызов (метод, тип, request_id, статус, длительность, число сообщений для стримов)
+- [x] AuthInterceptor: x-api-key обязателен везде, кроме reflection и health; таблица политик (service/user/seller) передаётся сервисом; Bearer-токен из Redis session:{token} → current_user; seller-методы для покупателя → PERMISSION_DENIED + ErrorInfo(SELLER_ROLE_REQUIRED)
+- [x] StreamCountInterceptor (x-items-count) и ExceptionHandlingInterceptor (домен → статус + details, прочее → INTERNAL, стек только в лог); если для стримов в grpc.aio это неудобно, делаем обёртку хэндлера в grpc_server и пишем это в decisions.md
+- [x] базовый клиент к соседям (nuke-di Client): канал grpc.aio, дефолтный deadline, проброс x-request-id, оставшегося deadline и authorization, UNAVAILABLE/DEADLINE_EXCEEDED → DependencyUnavailable, адрес из env
+- [x] тесты: x-request-id выставляется и пробрасывается; x-items-count в trailing metadata; доменные исключения дают нужные статусы и details; нет x-api-key → UNAUTHENTICATED; роль покупателя на seller-методе → PERMISSION_DENIED; базовый клиент превращает UNAVAILABLE и DEADLINE_EXCEEDED в DependencyUnavailable
+- [x] make check && make test — зелёные
 
 ### Task 6: catalog-service — CatalogService v1/v2
 

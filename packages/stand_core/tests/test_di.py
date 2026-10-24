@@ -11,6 +11,13 @@ from catalog.v1 import catalog_pb2
 from nuke_di import Client, Dependencies
 from stand_core import Context
 from stand_core.grpc.di import inject_handlers, resolve_interceptors
+from stand_core.grpc.interceptors import (
+    AuthInterceptor,
+    ExceptionHandlingInterceptor,
+    LoggingInterceptor,
+    RequestIdInterceptor,
+    StreamCountInterceptor,
+)
 from stand_core.grpc.rpc import MethodSignature, annotate
 from stand_core.grpc.server import grpc_server
 
@@ -95,8 +102,21 @@ def test_resolve_interceptors_rejects_non_interceptor(container: Dependencies) -
         resolve_interceptors([Calls], container)
 
 
-def test_resolve_interceptors_defaults_to_stand_interceptors(container: Dependencies) -> None:
-    assert resolve_interceptors(container=container) == []
+def test_resolve_interceptors_defaults_to_stand_interceptors(
+    container: Dependencies, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("STAND_API_KEY", "key")
+
+    interceptors = resolve_interceptors(container=container)
+
+    # Порядок выполнения из ТЗ 5.4; I/O нет — Redis подключится только в connect()
+    assert [type(i) for i in interceptors] == [
+        RequestIdInterceptor,
+        LoggingInterceptor,
+        AuthInterceptor,
+        StreamCountInterceptor,
+        ExceptionHandlingInterceptor,
+    ]
 
 
 async def test_injected_handler_and_interceptor_serve_calls(container: Dependencies) -> None:

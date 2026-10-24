@@ -2,6 +2,7 @@
 
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
+from typing import Any, Never
 
 import grpc
 from google.protobuf import any_pb2
@@ -215,3 +216,16 @@ def build_status(exc: BaseException) -> grpc.Status:
     return rpc_status.to_status(
         status_pb2.Status(code=exc.code.value[0], message=exc.message, details=packed)
     )
+
+
+async def abort_with_error(
+    context: grpc.aio.ServicerContext[Any, Any], exc: BaseException
+) -> Never:
+    """Завершить вызов статусом `build_status(exc)`.
+
+    `context.abort(..., trailing_metadata)` заменяет уже выставленную trailing metadata, поэтому
+    она добавляется к `grpc-status-details-bin` явно.
+    """
+    status = build_status(exc)
+    trailing = (*(context.trailing_metadata() or ()), *status.trailing_metadata)
+    await context.abort(status.code, status.details, trailing)

@@ -6,11 +6,13 @@
     # services/catalog/src/catalog_service/main.py
     from nuke_di import Shutdown, worker
     from stand_core.grpc import GRPC_HANDLERS, grpc_server, inject_handlers, resolve_interceptors
+    from stand_core.grpc.interceptors import register_auth_policies
 
     import catalog_service.handlers  # noqa: F401  — регистрирует хэндлеры
 
     HANDLERS = inject_handlers(GRPC_HANDLERS)  # DI.inject каждого хэндлера, до connect()
     INTERCEPTORS = resolve_interceptors()  # DI.resolve каждого интерцептора (они — Client)
+    register_auth_policies(catalog_service.handlers.AUTH_POLICIES)  # таблица из ТЗ 6.0
 
 
     @worker
@@ -26,10 +28,8 @@ from functools import partial
 import grpc
 from nuke_di import DI, Client, Dependencies
 
+from stand_core.grpc.interceptors import DEFAULT_INTERCEPTORS
 from stand_core.grpc.rpc import MethodAnnotation, MethodSignature
-
-# Интерцепторы стенда по умолчанию, в порядке выполнения. Заполняется вместе с интерцепторами.
-DEFAULT_INTERCEPTORS: tuple[type[Client], ...] = ()
 
 
 def inject_handlers(
@@ -54,7 +54,11 @@ def resolve_interceptors(
     interceptors: Sequence[type[Client]] | None = None,
     container: Dependencies = DI,
 ) -> list[grpc.aio.ServerInterceptor]:
-    """Резолв интерцепторов через контейнер; каждый — и `ServerInterceptor`, и nuke-di `Client`."""
+    """Резолв интерцепторов через контейнер; каждый — и `ServerInterceptor`, и nuke-di `Client`.
+
+    По умолчанию — `DEFAULT_INTERCEPTORS` в порядке ТЗ 5.4 (RequestId, Logging, Auth, StreamCount,
+    ExceptionHandling); `AuthInterceptor` тянет за собой `Sessions` → `Redis`.
+    """
     resolved: list[grpc.aio.ServerInterceptor] = []
     for interceptor_class in DEFAULT_INTERCEPTORS if interceptors is None else interceptors:
         interceptor = container.resolve(interceptor_class)

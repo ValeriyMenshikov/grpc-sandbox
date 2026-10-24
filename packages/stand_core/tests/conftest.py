@@ -2,6 +2,7 @@ from collections.abc import Iterator
 
 import pytest
 import structlog
+from stand_core.grpc.interceptors.auth import AUTH_POLICIES
 from stand_core.grpc.rpc import GRPC_HANDLERS
 
 
@@ -13,6 +14,15 @@ def isolated_registry() -> Iterator[None]:
     yield
     GRPC_HANDLERS.clear()
     GRPC_HANDLERS.update(saved)
+
+
+@pytest.fixture(autouse=True)
+def isolated_auth_policies() -> Iterator[None]:
+    saved = dict(AUTH_POLICIES)
+    AUTH_POLICIES.clear()
+    yield
+    AUTH_POLICIES.clear()
+    AUTH_POLICIES.update(saved)
 
 
 @pytest.fixture(autouse=True)
