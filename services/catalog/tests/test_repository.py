@@ -13,6 +13,7 @@ from datetime import timedelta
 
 import asyncpg
 import pytest
+from catalog_service import repository as repository_module
 from catalog_service.models import (
     ImportItem,
     ImportMode,
@@ -151,6 +152,20 @@ async def test_export_streams_seller_products_since(repository: CatalogRepositor
     assert sorted(everything[:2]) == ["A", "B"]
     assert everything[2] == "C"
     assert recent == ["C"]
+
+
+async def test_export_pages_through_batches(
+    repository: CatalogRepository, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(repository_module, "EXPORT_BATCH", 2)
+    offers = [f"E{i}" for i in range(5)]
+    await repository.import_products(SELLER, ImportMode.UPSERT, [item(o) for o in offers])
+
+    async with aclosing(repository.export_products(SELLER, None)) as products:
+        exported = [p.offer_id async for p in products]
+
+    # Одинаковый updated_at у всей пачки импорта: граница пачек держится на product_id
+    assert sorted(exported) == offers
 
 
 async def _products(repository: CatalogRepository, *stocks: int) -> list[str]:

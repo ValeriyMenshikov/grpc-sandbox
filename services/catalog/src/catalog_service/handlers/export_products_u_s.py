@@ -21,7 +21,7 @@ async def export_products(
     updated_since = (
         request.updated_since.ToDatetime(tzinfo=UTC) if request.HasField("updated_since") else None
     )
-    # aclosing: клиент ушёл посреди выгрузки — курсор и соединение с Postgres освобождаются сразу
+    # aclosing: клиент ушёл посреди выгрузки — генератор репозитория закрывается сразу
     async with aclosing(repository.export_products(seller.id, updated_since)) as products:
         async for product in products:
             if context.done():

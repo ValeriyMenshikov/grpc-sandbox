@@ -103,7 +103,7 @@ _ORDER_RESERVATIONS = """
 SELECT product_id, quantity FROM catalog.reservations WHERE order_id = $1 ORDER BY product_id
 """
 
-EXPORT_PREFETCH = 100
+EXPORT_BATCH = 100
 
 
 def _product(record: asyncpg.Record) -> Product:
@@ -179,21 +179,31 @@ class CatalogRepository(Client):
     async def export_products(
         self, seller_id: str, updated_since: datetime | None
     ) -> AsyncGenerator[Product, None]:
-        """Товары продавца курсором, без загрузки всего каталога в память.
+        """Товары продавца пачками по ключу `(updated_at, product_id)`, без загрузки всего
+        каталога в память.
 
-        Соединение занято, пока генератор не закрыт: вызывающий закрывает его через `aclosing`.
+        Каждая пачка — отдельный короткий запрос: между `yield` соединение с Postgres не
+        занято, поэтому медленный или застрявший клиент не держит соединение из пула.
         """
-        async with self._postgres.pool.acquire() as connection, connection.transaction():
-            cursor = connection.cursor(
+        after: tuple[datetime, str] | None = None
+        while True:
+            records = await self._postgres.pool.fetch(
                 f"{_PRODUCT_SELECT} WHERE p.seller_id = $1 "
                 "AND ($2::timestamptz IS NULL OR p.updated_at >= $2) "
-                "ORDER BY p.updated_at, p.product_id",
+                "AND ($3::timestamptz IS NULL OR (p.updated_at, p.product_id) > ($3, $4)) "
+                "ORDER BY p.updated_at, p.product_id LIMIT $5",
                 seller_id,
                 updated_since,
-                prefetch=EXPORT_PREFETCH,
+                None if after is None else after[0],
+                None if after is None else after[1],
+                EXPORT_BATCH,
             )
-            async for record in cursor:
+            for record in records:
                 yield _product(record)
+            if len(records) < EXPORT_BATCH:
+                return
+            last = records[-1]
+            after = (last["updated_at"], last["product_id"])
 
     async def get_available(self, product_id: str) -> int | None:
         """Доступный остаток (остаток минус резервы); None — товара нет."""
