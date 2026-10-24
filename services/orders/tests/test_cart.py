@@ -1,6 +1,7 @@
 from unittest.mock import Mock
 
 import pytest
+from order_service.carts import MAX_CART_QUANTITY
 from order_service.handlers.add_cart_item_u_u import add_cart_item
 from order_service.handlers.get_cart_u_u import get_cart
 from order_service.handlers.remove_cart_item_u_u import remove_cart_item
@@ -50,6 +51,28 @@ async def test_add_validates_product_and_quantity(
         await add_cart_item(orders_pb2.AddCartItemRequest(quantity=0), context, carts, catalog)
 
     assert [v.field for v in info.value.field_violations] == ["product_id", "quantity"]
+
+
+async def test_add_limits_position_quantity(
+    context: Mock, carts: FakeCarts, catalog: FakeCatalog
+) -> None:
+    carts.carts[BUYER_ID] = {"p-1": MAX_CART_QUANTITY - 1}
+
+    with pytest.raises(InvalidArgument) as too_much:
+        await add_cart_item(
+            orders_pb2.AddCartItemRequest(product_id="p-1", quantity=2**62), context, carts, catalog
+        )
+    with pytest.raises(InvalidArgument) as overflow:
+        await add_cart_item(
+            orders_pb2.AddCartItemRequest(product_id="p-1", quantity=2), context, carts, catalog
+        )
+
+    assert [v.field for v in too_much.value.field_violations] == ["quantity"]
+    assert [v.field for v in overflow.value.field_violations] == ["quantity"]
+    # Корзина не изменилась, и её по-прежнему можно получить
+    assert carts.carts[BUYER_ID] == {"p-1": MAX_CART_QUANTITY - 1}
+    response = await get_cart(orders_pb2.GetCartRequest(), context, carts, catalog)
+    assert response.cart.items[0].quantity == MAX_CART_QUANTITY - 1
 
 
 async def test_remove_item(context: Mock, carts: FakeCarts, catalog: FakeCatalog) -> None:

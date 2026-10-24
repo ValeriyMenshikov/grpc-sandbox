@@ -4,6 +4,18 @@ from nuke_di import Client
 from stand_core.clients import Redis
 
 CART_KEY_PREFIX = "cart:"
+# Предел количества одной позиции: сумма корзины в копейках остаётся в int64 (Money.units)
+MAX_CART_QUANTITY = 10_000
+
+# HINCRBY, если новое количество не превысит ARGV[2]; иначе -1 и корзина не меняется
+_ADD_WITHIN_LIMIT = """
+local current = tonumber(redis.call("HGET", KEYS[1], ARGV[1]) or "0")
+local quantity = current + tonumber(ARGV[2])
+if quantity > tonumber(ARGV[3]) then
+    return -1
+end
+return redis.call("HINCRBY", KEYS[1], ARGV[1], ARGV[2])
+"""
 
 
 def cart_key(user_id: str) -> str:
@@ -20,8 +32,17 @@ class Carts(Client):
         # decode_responses=True: ключи и значения — str, хотя типизированы как bytes | str
         return {str(product_id): int(quantity) for product_id, quantity in raw.items()}
 
-    async def add(self, user_id: str, product_id: str, quantity: int) -> None:
-        await self._redis.client.hincrby(cart_key(user_id), product_id, quantity)
+    async def add(self, user_id: str, product_id: str, quantity: int) -> bool:
+        """Прибавить к позиции; False — итог больше `MAX_CART_QUANTITY`, корзина не менялась."""
+        result = await self._redis.client.eval(
+            _ADD_WITHIN_LIMIT,
+            1,
+            cart_key(user_id),
+            product_id,
+            str(quantity),
+            str(MAX_CART_QUANTITY),
+        )
+        return int(result) >= 0
 
     async def remove(self, user_id: str, product_id: str) -> bool:
         """Убрать позицию; False — её не было в корзине."""

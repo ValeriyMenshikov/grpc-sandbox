@@ -202,3 +202,9 @@
 - Offset в `page_token` ограничен сверху: огромный offset → `INVALID_ARGUMENT` «invalid page token» + `BadRequest(pagination.page_token)`, как у битого токена (§10).
 - ConfirmEmail без кода в Redis → `NOT_FOUND` с описанием «expired or never issued», без совета «sign up again»: повторный SignUp на уже зарегистрированный email даёт `ALREADY_EXISTS`.
 - gateway проверяет диапазоны полей proto (`page_size` ≤ int32, `quantity` и цены в пределах int64): значение вне диапазона → 422, а не 500 из конструктора protobuf. Остальную валидацию (например, `quantity > 0`) по-прежнему делает сервис.
+
+## 21. Исправления по второму код-ревью
+
+- Метка `pending:{order_id}` ключа идемпотентности живёт остаток deadline Checkout плюс 30 с (без deadline — 30 с), а не фиксированные 30 с: медленный резерв (`STOCK_RESERVE_DELAY_MS`) больше не даёт повтору с тем же ключом занять ключ заново и создать второй заказ. `commit` и `forget` — compare-and-set (Lua): меняют ключ, только если в нём всё ещё значение этого вызова, поэтому отстающий вызов не затирает чужую метку или чужой заказ.
+- Количество одной позиции корзины ограничено 10 000 (`MAX_CART_QUANTITY`), проверка и `HINCRBY` — одним Lua-скриптом. Раньше огромный `quantity` переполнял `Money.units` или `HINCRBY`, и корзина отвечала `INTERNAL` до удаления позиции.
+- `ReleaseStock` берёт тот же advisory-замок по `order_id`, что `ReserveStock`: снятие после таймаута резерва ждёт идущий резерв, а не проходит мимо него, оставляя резерв навсегда.

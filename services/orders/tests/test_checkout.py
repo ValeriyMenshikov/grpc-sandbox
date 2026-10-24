@@ -1,4 +1,5 @@
 import asyncio
+from collections.abc import Mapping
 from unittest.mock import Mock
 
 import pytest
@@ -174,6 +175,30 @@ async def test_catalog_unavailable_creates_no_order(
     assert carts.carts[BUYER_ID] == {"p-1": 2, "p-2": 1}
     # Резерв мог состояться до таймаута — его пытаются снять
     assert stock.quietly_released == [order_id]
+
+
+async def test_failure_keeps_key_taken_over_by_another_call(
+    carts: FakeCarts,
+    idempotency: FakeIdempotency,
+    repository: FakeRepository,
+    catalog: FakeCatalog,
+    settings: OrderSettings,
+) -> None:
+    other = repository.add()
+
+    class TakenOverStock(FakeStock):
+        async def reserve(self, order_id: str, items: Mapping[str, int]) -> None:
+            # Метка этого вызова истекла, ключ занял и закрепил за собой другой вызов
+            idempotency.records[BUYER_ID, "key-1"] = IdempotencyRecord(other.order_id, False)
+            raise DependencyUnavailable("catalog")
+
+    carts.carts[BUYER_ID] = {"p-1": 1}
+    call = Checkout(carts, idempotency, repository, TakenOverStock(), catalog, settings)
+
+    with pytest.raises(DependencyUnavailable):
+        await call()
+
+    assert idempotency.records[BUYER_ID, "key-1"] == IdempotencyRecord(other.order_id, False)
 
 
 async def test_retry_after_unavailable_succeeds(call: Checkout, stock: FakeStock) -> None:

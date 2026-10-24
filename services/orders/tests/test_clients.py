@@ -23,6 +23,7 @@ from stand_core.grpc import (
     Role,
     inject_handlers,
 )
+from stand_core.grpc.context import reset_time_remaining, set_time_remaining
 from stand_core.grpc.interceptors import (
     AUTH_POLICIES as REGISTERED_POLICIES,
 )
@@ -134,39 +135,57 @@ async def test_unreachable_catalog_is_dependency_unavailable(
 async def test_carts_use_hash_per_user() -> None:
     redis = Mock()
     redis.client.hgetall = AsyncMock(return_value={"p-1": "2", "p-2": "1"})
-    redis.client.hincrby = AsyncMock()
+    redis.client.eval = AsyncMock(side_effect=[3, -1])
     redis.client.hdel = AsyncMock(side_effect=[1, 0])
     redis.client.delete = AsyncMock()
     carts = Carts(redis)
 
     items = await carts.items("u1")
-    await carts.add("u1", "p-1", 3)
+    added = [await carts.add("u1", "p-1", 3), await carts.add("u1", "p-1", 10_000)]
     removed = [await carts.remove("u1", "p-1"), await carts.remove("u1", "p-1")]
     await carts.clear("u1")
 
     assert items == {"p-1": 2, "p-2": 1}
-    redis.client.hincrby.assert_awaited_once_with("cart:u1", "p-1", 3)
+    assert added == [True, False]
+    assert redis.client.eval.await_args_list[0].args[1:] == (1, "cart:u1", "p-1", "3", "10000")
     assert removed == [True, False]
     redis.client.delete.assert_awaited_once_with("cart:u1")
 
 
 async def test_idempotency_keys_pending_then_committed() -> None:
     redis = Mock()
-    redis.client.set = AsyncMock(side_effect=[True, None, True])
+    redis.client.set = AsyncMock(side_effect=[True, None])
     redis.client.get = AsyncMock(side_effect=["pending:o-1", "o-1", None])
-    redis.client.delete = AsyncMock()
+    redis.client.eval = AsyncMock(side_effect=["OK", 1])
     keys = IdempotencyKeys(redis)
 
     claimed = [await keys.claim("u1", "k", "o-1"), await keys.claim("u1", "k", "o-2")]
     records = [await keys.get("u1", "k") for _ in range(3)]
-    await keys.commit("u1", "k", "o-1", 86400)
-    await keys.forget("u1", "k")
+    committed = await keys.commit("u1", "k", "o-1", 86400)
+    await keys.forget("u1", "k", IdempotencyRecord("o-1", False))
 
     assert claimed == [True, False]
     redis.client.set.assert_any_await("idem:u1:k", "pending:o-1", nx=True, ex=30)
-    redis.client.set.assert_awaited_with("idem:u1:k", "o-1", ex=86400)
     assert records == [IdempotencyRecord("o-1", True), IdempotencyRecord("o-1", False), None]
-    redis.client.delete.assert_awaited_once_with("idem:u1:k")
+    assert committed is True
+    # commit и forget — compare-and-set: меняют ключ, только если в нём значение этого вызова
+    commit_call, forget_call = redis.client.eval.await_args_list
+    assert commit_call.args[1:] == (1, "idem:u1:k", "pending:o-1", "o-1", "86400")
+    assert forget_call.args[1:] == (1, "idem:u1:k", "o-1")
+
+
+async def test_idempotency_pending_ttl_covers_deadline() -> None:
+    redis = Mock()
+    redis.client.set = AsyncMock(return_value=True)
+    keys = IdempotencyKeys(redis)
+
+    token = set_time_remaining(60.0)
+    try:
+        await keys.claim("u1", "k", "o-1")
+    finally:
+        reset_time_remaining(token)
+
+    assert redis.client.set.await_args.kwargs["ex"] == 90
 
 
 # --- Checkout целиком: входящий вызов → order-service → поддельный catalog ---

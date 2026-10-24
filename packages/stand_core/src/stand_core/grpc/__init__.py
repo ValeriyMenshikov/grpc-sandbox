@@ -7,6 +7,7 @@ from stand_core.grpc.context import (
     current_user,
     current_user_or_none,
     request_id,
+    time_remaining,
 )
 from stand_core.grpc.di import inject_handlers, resolve_interceptors
 from stand_core.grpc.errors import (
@@ -74,4 +75,5 @@ __all__ = (
     "request_id",
     "resolve_interceptors",
     "rpc",
+    "time_remaining",
 )

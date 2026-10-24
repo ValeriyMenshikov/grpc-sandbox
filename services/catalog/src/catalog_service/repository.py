@@ -239,7 +239,12 @@ class CatalogRepository(Client):
 
     async def release_stock(self, order_id: str) -> bool:
         """Снять резерв order_id; False — резерва не было (уже снят или не создавался)."""
-        released = await self._postgres.pool.fetch(
-            "DELETE FROM catalog.reservations WHERE order_id = $1 RETURNING product_id", order_id
-        )
+        async with self._postgres.pool.acquire() as connection, connection.transaction():
+            # Тот же замок, что у reserve_stock: снятие ждёт идущий резерв этого order_id,
+            # иначе резерв, закоммиченный после DELETE, остался бы навсегда
+            await connection.execute("SELECT pg_advisory_xact_lock(hashtext($1))", order_id)
+            released = await connection.fetch(
+                "DELETE FROM catalog.reservations WHERE order_id = $1 RETURNING product_id",
+                order_id,
+            )
         return bool(released)

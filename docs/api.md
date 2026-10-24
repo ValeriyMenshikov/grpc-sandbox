@@ -111,7 +111,7 @@
 |---|---|---|---|---|
 | `GetStock` | unary | service | Доступный остаток `available`. | пустой id → `INVALID_ARGUMENT`; нет товара → `NOT_FOUND` |
 | `ReserveStock` | unary | service | Атомарный резерв всех позиций под `order_id`: либо все, либо ни одной. Повтор с тем же `order_id` возвращает существующий резерв. Задержка перед резервом — env `STOCK_RESERVE_DELAY_MS` или metadata `x-debug-delay-ms`; если deadline короче задержки, вызов завершается `DEADLINE_EXCEEDED` без резерва. | пустой `order_id`/список/`product_id`, `quantity <= 0`, повтор товара → `INVALID_ARGUMENT` (`items[i].quantity`, ...); нехватка или нет товара → `FAILED_PRECONDITION` + `PreconditionFailure` по каждому товару (`INSUFFICIENT_STOCK` / `PRODUCT_NOT_FOUND`) |
-| `ReleaseStock` | unary | service | Снимает резерв, идемпотентно: `released=false`, если резерва уже не было. | пустой `order_id` → `INVALID_ARGUMENT` |
+| `ReleaseStock` | unary | service | Снимает резерв, идемпотентно: `released=false`, если резерва уже не было. Идущий `ReserveStock` с тем же `order_id` дожидается. | пустой `order_id` → `INVALID_ARGUMENT` |
 
 ## catalog.v2.CatalogService (50052)
 
@@ -134,7 +134,7 @@
 
 | Метод | Тип | Поведение | Ошибки |
 |---|---|---|---|
-| `AddCartItem` | unary | Прибавляет `quantity` к позиции в Redis `cart:{user_id}`; остаток не проверяет. Возвращает корзину. | пустой `product_id`, `quantity <= 0` → `INVALID_ARGUMENT`; товара нет в catalog → `NOT_FOUND`; catalog недоступен → `UNAVAILABLE` |
+| `AddCartItem` | unary | Прибавляет `quantity` к позиции в Redis `cart:{user_id}`; остаток не проверяет. Возвращает корзину. | пустой `product_id`, `quantity <= 0`, `quantity` или итог позиции больше 10 000 → `INVALID_ARGUMENT`; товара нет в catalog → `NOT_FOUND`; catalog недоступен → `UNAVAILABLE` |
 | `RemoveCartItem` | unary | Удаляет позицию целиком. | позиции нет → `NOT_FOUND` (`ResourceInfo` cart_item); catalog недоступен → `UNAVAILABLE` |
 | `GetCart` | unary | Позиции с актуальными названием, ценой (`unit_price`) и остатком (`available`) из catalog, `total`. Пропавшие из catalog товары в ответ не попадают. | catalog недоступен → `UNAVAILABLE` |
 | `Checkout` | unary | `idempotency-key` → резерв `StockService.ReserveStock` (с пробросом deadline и `x-request-id`) → снимок цен → заказ `ORDER_STATUS_CREATED` → корзина очищается. Повтор с тем же ключом — тот же заказ в текущем статусе. | нет/пустой/длинный `idempotency-key` → `INVALID_ARGUMENT`; пустая корзина → `FAILED_PRECONDITION` (`CART_EMPTY`); нехватка → `FAILED_PRECONDITION` с деталями от catalog как есть; параллельный повтор → `FAILED_PRECONDITION` (`CHECKOUT_IN_PROGRESS`); catalog недоступен или не ответил в срок → `UNAVAILABLE` (`DEPENDENCY_UNAVAILABLE`, dependency=catalog), заказ не создаётся. При любой ошибке ключ освобождается |

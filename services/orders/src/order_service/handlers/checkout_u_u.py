@@ -17,7 +17,7 @@ from stand_core.grpc import (
 from order_service.carts import Carts
 from order_service.catalog_client import CatalogClient
 from order_service.convert import order_pb
-from order_service.idempotency import IdempotencyKeys
+from order_service.idempotency import IdempotencyKeys, IdempotencyRecord
 from order_service.models import Order, OrderItem
 from order_service.repository import OrderRepository
 from order_service.settings import OrderSettings
@@ -59,7 +59,7 @@ async def replayed_order(
     order = await repository.get_order(record.order_id)
     if order is None:
         # Ключ пережил заказ (make reset очистил базу, но не Redis) — оформляем заново
-        await idempotency.forget(user_id, key)
+        await idempotency.forget(user_id, key, record)
     return order
 
 
@@ -145,8 +145,8 @@ async def checkout(
     try:
         order = await place_order(order_id, user_id, cart, stock, catalog, repository)
     except Exception:
-        # Заказа нет — ключ свободен для повтора
-        await idempotency.forget(user_id, key)
+        # Заказа нет — ключ свободен для повтора (если его ещё держит этот вызов)
+        await idempotency.forget(user_id, key, IdempotencyRecord(order_id, pending=True))
         raise
     await idempotency.commit(user_id, key, order.order_id, settings.idempotency_ttl_s)
     await carts.clear(user_id)

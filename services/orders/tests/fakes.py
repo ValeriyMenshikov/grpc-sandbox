@@ -7,7 +7,7 @@ from dataclasses import replace
 from datetime import UTC, datetime, timedelta
 
 from catalog.v1 import catalog_pb2
-from order_service.carts import Carts
+from order_service.carts import MAX_CART_QUANTITY, Carts
 from order_service.catalog_client import CatalogClient
 from order_service.events import OrderEvents, Subscription
 from order_service.idempotency import IdempotencyKeys, IdempotencyRecord
@@ -99,9 +99,12 @@ class FakeCarts(Carts):
     async def items(self, user_id: str) -> dict[str, int]:
         return dict(self.carts.get(user_id, {}))
 
-    async def add(self, user_id: str, product_id: str, quantity: int) -> None:
+    async def add(self, user_id: str, product_id: str, quantity: int) -> bool:
         cart = self.carts.setdefault(user_id, {})
+        if cart.get(product_id, 0) + quantity > MAX_CART_QUANTITY:
+            return False
         cart[product_id] = cart.get(product_id, 0) + quantity
+        return True
 
     async def remove(self, user_id: str, product_id: str) -> bool:
         return self.carts.get(user_id, {}).pop(product_id, None) is not None
@@ -124,12 +127,16 @@ class FakeIdempotency(IdempotencyKeys):
         self.records[user_id, key] = IdempotencyRecord(order_id, pending=True)
         return True
 
-    async def commit(self, user_id: str, key: str, order_id: str, ttl_seconds: int) -> None:
+    async def commit(self, user_id: str, key: str, order_id: str, ttl_seconds: int) -> bool:
+        if self.records.get((user_id, key)) != IdempotencyRecord(order_id, pending=True):
+            return False
         self.records[user_id, key] = IdempotencyRecord(order_id, pending=False)
         self.ttls[user_id, key] = ttl_seconds
+        return True
 
-    async def forget(self, user_id: str, key: str) -> None:
-        self.records.pop((user_id, key), None)
+    async def forget(self, user_id: str, key: str, record: IdempotencyRecord) -> None:
+        if self.records.get((user_id, key)) == record:
+            del self.records[user_id, key]
 
 
 def product(product_id: str, name: str, price_kopecks: int, stock: int = 10) -> catalog_pb2.Product:
