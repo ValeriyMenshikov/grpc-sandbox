@@ -8,7 +8,7 @@ import user_service.handlers  # noqa: F401  — регистрирует хэн�
 from google.protobuf.field_mask_pb2 import FieldMask
 from google.rpc import error_details_pb2
 from nuke_di import Dependencies
-from stand_core.clients import Sessions
+from stand_core.clients import Rabbit, Sessions
 from stand_core.grpc import GRPC_HANDLERS, inject_handlers
 from stand_core.grpc.interceptors import AUTH_POLICIES as REGISTERED_POLICIES
 from stand_core.grpc.interceptors import (
@@ -29,7 +29,7 @@ from users.v1 import users_pb2
 from users.v1 import users_pb2_grpc as users_grpc
 
 from .conftest import API_KEY
-from .fakes import FakeConfirmCodes, FakeRepository, FakeSessions
+from .fakes import FakeConfirmCodes, FakeRabbit, FakeRepository, FakeSessions
 
 SERVICE = (("x-api-key", API_KEY),)
 # UserServiceAsyncStub есть только в .pyi (перегрузка UserServiceStub для grpc.aio.Channel),
@@ -54,12 +54,14 @@ async def stub(
     repository: FakeRepository,
     confirm_codes: FakeConfirmCodes,
     sessions: FakeSessions,
+    rabbit: FakeRabbit,
     policies: None,
 ) -> AsyncIterator["users_grpc.UserServiceAsyncStub"]:
     container = Dependencies()
     container.mock(UserRepository, repository)
     container.mock(ConfirmCodes, confirm_codes)
     container.mock(Sessions, sessions)
+    container.mock(Rabbit, rabbit)
     handlers = inject_handlers(
         {s: a for s, a in GRPC_HANDLERS.items() if s.package == "users.v1"}, container
     )
@@ -79,16 +81,19 @@ async def stub(
 
 
 async def test_sign_up_confirm_sign_in_and_out(
-    stub: "users_grpc.UserServiceAsyncStub", confirm_codes: FakeConfirmCodes
+    stub: "users_grpc.UserServiceAsyncStub", confirm_codes: FakeConfirmCodes, rabbit: FakeRabbit
 ) -> None:
     email = "new@example.com"
     await stub.SignUp(
         users_pb2.SignUpRequest(email=email, password="password1", display_name="Иван"),
         metadata=SERVICE,
     )
+    # Подтверждаем кодом из события — тем, что придёт в письме
+    [(_, event)] = rabbit.published
+    assert event["code"] == confirm_codes.codes[email]
+    assert event["request_id"]
     await stub.ConfirmEmail(
-        users_pb2.ConfirmEmailRequest(email=email, code=confirm_codes.codes[email]),
-        metadata=SERVICE,
+        users_pb2.ConfirmEmailRequest(email=email, code=event["code"]), metadata=SERVICE
     )
     signed_in = await stub.SignIn(
         users_pb2.SignInRequest(email=email, password="password1"), metadata=SERVICE
@@ -175,3 +180,17 @@ async def test_without_api_key_is_unauthenticated(stub: "users_grpc.UserServiceA
     with pytest.raises(grpc.aio.AioRpcError) as info:
         await stub.SignIn(users_pb2.SignInRequest(email="a@b.c", password="password1"))
     assert info.value.code() is grpc.StatusCode.UNAUTHENTICATED
+
+
+async def test_sign_up_succeeds_when_broker_is_down(
+    stub: "users_grpc.UserServiceAsyncStub", confirm_codes: FakeConfirmCodes, rabbit: FakeRabbit
+) -> None:
+    rabbit.error = ConnectionError("broker is down")
+
+    response = await stub.SignUp(
+        users_pb2.SignUpRequest(email="new@example.com", password="password1", display_name="Иван"),
+        metadata=SERVICE,
+    )
+
+    assert response.user.status == users_pb2.USER_STATUS_PENDING
+    assert "new@example.com" in confirm_codes.codes

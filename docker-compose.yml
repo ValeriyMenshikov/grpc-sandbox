@@ -109,6 +109,8 @@ services:
       GRPC_PORT: 50051
       SESSION_TTL_S: ${SESSION_TTL_S:-3600}
       CONFIRM_CODE_TTL_S: ${CONFIRM_CODE_TTL_S:-900}
+      CONFIRM_PUBLISH_TIMEOUT_S: ${CONFIRM_PUBLISH_TIMEOUT_S:-2}
+      RABBITMQ_URL: ${RABBITMQ_URL:-amqp://stand:stand@rabbitmq:5672/}
       SEED_SELLER_PASSWORD: ${SEED_SELLER_PASSWORD:-seller-password}
     ports:
       - "${USERS_PORT:-50051}:50051"
@@ -117,6 +119,9 @@ services:
         condition: service_healthy
       # Redis — коды подтверждения confirm:{email} и сессии session:{token}
       redis:
+        condition: service_healthy
+      # Только порядок старта: без брокера позже SignUp проходит, но письма нет
+      rabbitmq:
         condition: service_healthy
     healthcheck: *grpc-healthcheck
 

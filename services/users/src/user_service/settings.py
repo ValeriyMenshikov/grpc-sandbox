@@ -12,5 +12,7 @@ class UserSettings(Settings):
     session_ttl_s: int = 3600
     # Время жизни кода подтверждения confirm:{email}
     confirm_code_ttl_s: int = 900
+    # Сколько ждать публикации события письма в RabbitMQ, прежде чем ответить SignUp без письма
+    confirm_publish_timeout_s: float = 2.0
     # Пароль продавца-сида seller@stand.local; хэш пишется в базу при старте сервиса
     seed_seller_password: str = "seller-password"

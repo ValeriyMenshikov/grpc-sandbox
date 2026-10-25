@@ -1,10 +1,11 @@
-"""Репозиторий, коды подтверждения и сессии в памяти для unit-тестов (без Postgres и Redis)."""
+"""Репозиторий, коды, сессии и брокер в памяти для unit-тестов (без Postgres, Redis и RabbitMQ)."""
 
 from collections.abc import Mapping
 from dataclasses import replace
 from datetime import UTC, datetime, timedelta
+from typing import Any
 
-from stand_core.clients import Sessions
+from stand_core.clients import Rabbit, Sessions
 from stand_core.grpc import CurrentUser, Role
 from user_service.confirm_codes import ConfirmCodes
 from user_service.models import ProfileField, User, UserStatus
@@ -131,3 +132,16 @@ class FakeSessions(Sessions):
 
     async def delete(self, token: str) -> None:
         self.users.pop(token, None)
+
+
+class FakeRabbit(Rabbit):
+    """Запоминает опубликованные события; `error` — исключение, которым падает публикация."""
+
+    def __init__(self) -> None:
+        self.published: list[tuple[str, dict[str, Any]]] = []
+        self.error: Exception | None = None
+
+    async def publish(self, routing_key: str, payload: Mapping[str, Any]) -> None:
+        if self.error is not None:
+            raise self.error
+        self.published.append((routing_key, dict(payload)))

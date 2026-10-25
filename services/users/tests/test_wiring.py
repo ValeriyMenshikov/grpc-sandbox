@@ -1,4 +1,4 @@
-"""Дерево клиентов user-service собирается из настоящего main.py (без Postgres и Redis)."""
+"""Дерево клиентов user-service собирается из настоящего main.py (без Postgres, Redis, RabbitMQ)."""
 
 import json
 import os
@@ -8,7 +8,7 @@ import sys
 import pytest
 import user_service.handlers  # noqa: F401  — регистрирует хэндлеры
 from nuke_di import Dependencies
-from stand_core.clients import Postgres, Redis, Sessions
+from stand_core.clients import Postgres, Rabbit, Redis, Sessions
 from stand_core.grpc import GRPC_HANDLERS, AuthPolicy, inject_handlers
 from user_service.auth import AUTH_POLICIES
 from user_service.confirm_codes import ConfirmCodes
@@ -54,6 +54,7 @@ def test_main_builds_client_tree() -> None:
         "Settings",
         "Sessions",
         "Redis",
+        "Rabbit",
     } <= set(wiring["clients"])
     assert wiring["handlers"] == [f"/users.v1.UserService/{method}" for method in METHODS]
     assert wiring["interceptors"] == [
@@ -72,7 +73,15 @@ def test_handlers_inject_clients() -> None:
     inject_handlers({s: a for s, a in GRPC_HANDLERS.items() if s.package == "users.v1"}, container)
 
     resolved = {node.client_class for node in container.graph().nodes}
-    assert {UserRepository, ConfirmCodes, Sessions, Postgres, Redis, UserSettings} <= resolved
+    assert {
+        UserRepository,
+        ConfirmCodes,
+        Sessions,
+        Postgres,
+        Redis,
+        Rabbit,
+        UserSettings,
+    } <= resolved
 
 
 def test_every_handler_has_auth_policy() -> None:

@@ -1,6 +1,7 @@
 """Коды подтверждения email в Redis: `confirm:{email}` → 6-значный код с TTL.
 
-Письма нет: автотесты курса читают код прямо из Redis по этому ключу.
+Здесь код сверяется в `ConfirmEmail`; до пользователя он доходит письмом: `SignUp` публикует
+событие в RabbitMQ, notification-service отправляет его в Mailpit.
 """
 
 import secrets

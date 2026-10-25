@@ -1,5 +1,14 @@
+import asyncio
+
 from stand_core import Context, rpc
-from stand_core.grpc import AlreadyExists, FieldViolation, InvalidArgument
+from stand_core.clients import Rabbit
+from stand_core.events import (
+    USER_EMAIL_CONFIRMATION_REQUESTED,
+    EmailConfirmationRequested,
+    email_confirmation_payload,
+)
+from stand_core.grpc import AlreadyExists, FieldViolation, InvalidArgument, request_id
+from stand_core.logging import get_logger
 from users.v1 import users_pb2
 
 from user_service.confirm_codes import ConfirmCodes, generate_code
@@ -14,6 +23,8 @@ from user_service.validation import (
     password_violations,
 )
 
+logger = get_logger(__name__)
+
 
 @rpc("SignUp", package="users.v1", service="UserService")
 async def sign_up(
@@ -22,6 +33,7 @@ async def sign_up(
     repository: UserRepository,
     confirm_codes: ConfirmCodes,
     settings: UserSettings,
+    rabbit: Rabbit,
 ) -> users_pb2.SignUpResponse:
     email = normalize_email(request.email)
     display_name = request.display_name.strip()
@@ -40,5 +52,35 @@ async def sign_up(
     user = await repository.create_user(email, password_hash, display_name, role)
     if user is None:
         raise AlreadyExists("user", email)
-    await confirm_codes.save(email, generate_code(), settings.confirm_code_ttl_s)
+    code = generate_code()
+    await confirm_codes.save(email, code, settings.confirm_code_ttl_s)
+    event = EmailConfirmationRequested(
+        email=email,
+        code=code,
+        display_name=display_name,
+        ttl_s=settings.confirm_code_ttl_s,
+        request_id=request_id(),
+    )
+    await publish_quietly(rabbit, event, settings.confirm_publish_timeout_s)
     return users_pb2.SignUpResponse(user=user_pb(user))
+
+
+async def publish_quietly(
+    rabbit: Rabbit, event: EmailConfirmationRequested, timeout_s: float
+) -> None:
+    """Публикация события письма без ошибки наружу: пользователь создан, код уже в Redis.
+
+    Без брокера письма не будет, но регистрация проходит (docs/decisions.md §28). Таймаут —
+    потому что robust-соединение aio-pika при обрыве ждёт переподключения, а не падает сразу.
+    """
+    try:
+        async with asyncio.timeout(timeout_s):
+            await rabbit.publish(
+                USER_EMAIL_CONFIRMATION_REQUESTED, email_confirmation_payload(event)
+            )
+    except Exception as exc:
+        logger.error(
+            "users.confirmation_publish_failed",
+            email=event.email,
+            error=str(exc) or type(exc).__name__,
+        )

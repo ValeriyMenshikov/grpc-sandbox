@@ -7,7 +7,7 @@ from stand_core.grpc.context import CurrentUser, reset_current_user, set_current
 from user_service.models import User
 from user_service.settings import UserSettings
 
-from .fakes import FakeConfirmCodes, FakeRepository, FakeSessions
+from .fakes import FakeConfirmCodes, FakeRabbit, FakeRepository, FakeSessions
 
 API_KEY = "test-key"
 SESSION_TTL_S = 120
@@ -34,6 +34,11 @@ def confirm_codes() -> FakeConfirmCodes:
 @pytest.fixture
 def sessions() -> FakeSessions:
     return FakeSessions()
+
+
+@pytest.fixture
+def rabbit() -> FakeRabbit:
+    return FakeRabbit()
 
 
 @pytest.fixture
