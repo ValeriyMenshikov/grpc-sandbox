@@ -184,6 +184,33 @@ services:
         condition: service_healthy
     healthcheck: *grpc-healthcheck
 
+  notifications:
+    <<: *python-service
+    command: ["python", "-m", "notification_service.main"]
+    environment:
+      <<: *common-env
+      GRPC_PORT: 50055
+      RABBITMQ_URL: ${RABBITMQ_URL:-amqp://stand:stand@rabbitmq:5672/}
+      SMTP_HOST: ${SMTP_HOST:-mailpit}
+      SMTP_PORT: ${SMTP_PORT:-1025}
+      MAIL_FROM: ${MAIL_FROM:-Маркетплейс-стенд <noreply@stand.local>}
+    ports:
+      - "${NOTIFICATIONS_PORT:-50055}:50055"
+    depends_on:
+      # Postgres — журнал писем (схема notifications)
+      postgres:
+        condition: service_healthy
+      # Redis — для сессий пользователей в AuthInterceptor
+      redis:
+        condition: service_healthy
+      # RabbitMQ — очередь писем notifications.email из exchange stand.events
+      rabbitmq:
+        condition: service_healthy
+      # Только порядок старта: остановленный позже Mailpit — письма в dead-letter со статусом FAILED
+      mailpit:
+        condition: service_healthy
+    healthcheck: *grpc-healthcheck
+
   gateway:
     <<: *python-service
     command: ["python", "-m", "gateway.main"]

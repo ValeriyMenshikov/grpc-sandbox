@@ -11,6 +11,7 @@ members = [
     "catalog-service",
     "gateway",
     "grpc-stand",
+    "notifications-service",
     "order-service",
     "stand-core",
     "stand-protos",
@@ -42,6 +43,15 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/71/11/8b93eac7630c5087c34df3d34ce0bdf50d6ea2fb83061f17e8c73877141d/aiormq-7.2.4.tar.gz", hash = "sha256:5fd20bb9583d73de85572198496b65cf028f27527c1733c9840d458e0b40e8fa", size = 81569, upload-time = "2026-10-24T12:36:22.703Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/29/a7/346b74a5f19d0acbd9d428f5f7b070537a8a079e45a74fba58c7831e058d/aiormq-7.2.4-py3-none-any.whl", hash = "sha256:2b9d6dade171318185ab8f507717b630f20b8b2303a075f9293d3f6b0d166f1d", size = 40694, upload-time = "2026-10-24T12:36:21.054Z" },
+]
+
+[[package]]
+name = "aiosmtplib"
+version = "5.1.3"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/9b/5c/9cabc5db6d607616e81ba6d8f1f231cd5a75955807a308c1090a59072d6d/aiosmtplib-5.1.3.tar.gz", hash = "sha256:ac2b418d3260ba62d9cfd0fe7359726e9dc009a4e8e8d9909fdfae332f522a7c", size = 77010, upload-time = "2026-09-08T02:11:20.532Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/9c/0a/b56ab8163d54960337fdca475d3dfd56c8badf6172e79cf2ad00d5335dc1/aiosmtplib-5.1.3-py3-none-any.whl", hash = "sha256:f7d76ce3d4995a65a178c1f11e1bd1607706b921d00cb768e7a2c7f7ef5517a8", size = 30116, upload-time = "2026-09-08T02:11:19.352Z" },
 ]
 
 [[package]]
@@ -978,6 +988,23 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/87/07/7ffb897eee5c01e816e037f51a6720bf1a0a8c17cca1a2382ae554f43044/mypy_protobuf-5.1.0.tar.gz", hash = "sha256:8493758852a9cdc075a11dbe96c6e37ea2feba5fd5f33ef7442b9a275322a94c", size = 37529, upload-time = "2026-04-28T15:56:40.356Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/e8/ec/5ffcf8f5f53757e01afdece10c664e694ac60d2f17c2036811b85b842a5b/mypy_protobuf-5.1.0-py3-none-any.whl", hash = "sha256:d7031f563f806b8bcd448a3e86768bf0994c0af5b0017b344a4fbbba4191f43c", size = 26313, upload-time = "2026-04-28T15:56:39.096Z" },
+]
+
+[[package]]
+name = "notifications-service"
+version = "0.1.0"
+source = { editable = "services/notifications" }
+dependencies = [
+    { name = "aiosmtplib" },
+    { name = "stand-core" },
+    { name = "stand-protos" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "aiosmtplib", specifier = ">=3" },
+    { name = "stand-core", editable = "packages/core" },
+    { name = "stand-protos", editable = "pb" },
 ]
 
 [[package]]
