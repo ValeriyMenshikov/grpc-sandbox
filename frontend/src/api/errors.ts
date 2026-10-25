@@ -1,5 +1,5 @@
 // Единый разбор ошибок gateway: тело стенда `{"error":{code,message,details}}`, 422 FastAPI
-// `{"detail":[...]}`, 401, недоступность соседей (503/504) и сетевые сбои.
+// `{"detail":[...]}`, 401, недоступность (502 от nginx, 503/504 от gateway) и сетевые сбои.
 
 export type ApiErrorKind = 'stand' | 'validation' | 'unauthorized' | 'unavailable' | 'network' | 'unknown'
 
@@ -31,7 +31,6 @@ interface ApiErrorInit {
   code?: string
   details?: RichDetail[]
   validation?: ValidationIssue[]
-  serverMessage?: string
 }
 
 export class ApiError extends Error {
@@ -42,8 +41,6 @@ export class ApiError extends Error {
   readonly code: string
   readonly details: RichDetail[]
   readonly validation: ValidationIssue[]
-  // Сообщение сервера как есть, когда `message` заменено русским текстом
-  readonly serverMessage: string
 
   constructor(init: ApiErrorInit) {
     super(init.message)
@@ -53,12 +50,10 @@ export class ApiError extends Error {
     this.code = init.code ?? ''
     this.details = init.details ?? []
     this.validation = init.validation ?? []
-    this.serverMessage = init.serverMessage ?? init.message
   }
 
-  static network(cause: unknown): ApiError {
-    const serverMessage = cause instanceof Error ? cause.message : String(cause)
-    return new ApiError({ kind: 'network', httpStatus: 0, message: NETWORK_MESSAGE, serverMessage })
+  static network(): ApiError {
+    return new ApiError({ kind: 'network', httpStatus: 0, message: NETWORK_MESSAGE })
   }
 }
 
@@ -87,7 +82,6 @@ export function parseApiError(httpStatus: number, body: unknown): ApiError {
       httpStatus,
       code: typeof code === 'string' ? code : '',
       message: unavailable ? UNAVAILABLE_MESSAGE : serverMessage || `HTTP ${httpStatus}`,
-      serverMessage,
       details: Array.isArray(details) ? details.filter(isRichDetail) : [],
     })
   }

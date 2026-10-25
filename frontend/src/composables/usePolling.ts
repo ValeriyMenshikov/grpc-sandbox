@@ -1,6 +1,6 @@
 // Поллинг ресурса: запрос, пауза, следующий запрос (без наложения запросов друг на друга).
 // Останавливается, когда `isDone(data)`, на невременной ошибке и при размонтировании;
-// временную ошибку (503/504, сеть) показывает и продолжает опрос.
+// временную ошибку (502/503/504, сеть) показывает и продолжает опрос.
 import { getCurrentInstance, onUnmounted, ref, shallowRef, type Ref } from 'vue'
 
 import { ApiError, toApiError } from '../api/errors'
@@ -23,7 +23,6 @@ function isTransient(error: ApiError): boolean {
 export function usePolling<T>(
   fetch: () => Promise<T>,
   isDone: (data: T) => boolean,
-  intervalMs: number = POLL_INTERVAL_MS,
 ): Polling<T> {
   const data = shallowRef<T | null>(null)
   const error = ref<ApiError | null>(null)
@@ -47,7 +46,7 @@ export function usePolling<T>(
       keepGoing = isTransient(error.value)
     }
     if (keepGoing) {
-      timer = setTimeout(() => void tick(current), intervalMs)
+      timer = setTimeout(() => void tick(current), POLL_INTERVAL_MS)
     } else {
       active.value = false
     }

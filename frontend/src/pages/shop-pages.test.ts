@@ -39,6 +39,15 @@ function plain(text: string | undefined): string {
   return (text ?? '').replace(/\u00a0/g, ' ')
 }
 
+// Промис, который тест завершает сам — чтобы держать запрос «в полёте»
+function deferred<T>() {
+  let resolve: (value: T) => void = () => {}
+  const promise = new Promise<T>((res) => {
+    resolve = res
+  })
+  return { promise, resolve }
+}
+
 function page(products: Product[], nextPageToken = ''): ProductsPage {
   return { products, next_page_token: nextPageToken }
 }
@@ -183,6 +192,55 @@ describe('CatalogPage', () => {
 
     expect(wrapper.find('[role=alert]').exists()).toBe(false)
     expect(wrapper.find('.product-item').exists()).toBe(true)
+  })
+  it('ответ устаревшего запроса отбрасывается', async () => {
+    const stale = deferred<ProductsPage>()
+    vi.mocked(api.searchProducts)
+      .mockReturnValueOnce(stale.promise)
+      .mockResolvedValueOnce(page([product('p9')]))
+    const { wrapper, router } = await mountApp('/')
+
+    await router.push('/?sort=newest')
+    await flushPromises()
+    stale.resolve(page([product('p1')], 'token-2'))
+    await flushPromises()
+
+    expect(wrapper.findAll('.product-item a').map((a) => a.text())).toEqual(['Товар p9'])
+    expect(wrapper.find('.load-more').exists()).toBe(false)
+    expect(wrapper.find('.loading').exists()).toBe(false)
+  })
+
+  it('некорректная цена посреди запроса — загрузка не зависает', async () => {
+    vi.mocked(api.searchProducts).mockReturnValueOnce(new Promise(() => {}))
+    const { wrapper, router } = await mountApp('/')
+
+    await router.push('/?min_price=abc')
+    await flushPromises()
+
+    expect(wrapper.find('.input-error').exists()).toBe(true)
+    expect(wrapper.find('.loading').exists()).toBe(false)
+  })
+
+  it('ошибка «Показать ещё» — повтор по тому же токену, загруженное остаётся', async () => {
+    vi.mocked(api.searchProducts)
+      .mockResolvedValueOnce(page([product('p1')], 'token-2'))
+      .mockRejectedValueOnce(parseApiError(503, { error: { code: 'UNAVAILABLE', message: 'x' } }))
+      .mockResolvedValueOnce(page([product('p2')]))
+    const { wrapper } = await mountApp('/')
+
+    await wrapper.find('.load-more').trigger('click')
+    await flushPromises()
+    expect(wrapper.find('[role=alert]').text()).toContain('Сервис недоступен')
+    expect(wrapper.findAll('.product-item')).toHaveLength(1)
+
+    await wrapper.find('.error-retry').trigger('click')
+    await flushPromises()
+
+    expect(vi.mocked(api.searchProducts).mock.calls[2]?.[0]).toMatchObject({ page_token: 'token-2' })
+    expect(wrapper.findAll('.product-item a').map((a) => a.text())).toEqual([
+      'Товар p1',
+      'Товар p2',
+    ])
   })
 })
 

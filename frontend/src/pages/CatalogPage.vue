@@ -83,6 +83,9 @@ async function load(reset: boolean): Promise<void> {
     inputError.value = e instanceof Error ? e.message : String(e)
     products.value = []
     nextPageToken.value = ''
+    // Запрос прошлых фильтров ещё мог быть в полёте — его ответ уже отброшен
+    loading.value = false
+    error.value = null
     return
   }
   inputError.value = ''

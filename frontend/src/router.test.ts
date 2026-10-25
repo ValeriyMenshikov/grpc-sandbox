@@ -1,10 +1,11 @@
-import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { createMemoryHistory } from 'vue-router'
 
-import { signIn, signOut } from './api/auth'
-import { user } from './api/testing'
+import { session, signIn, signOut } from './api/auth'
+import { request } from './api/client'
+import { jsonResponse, mockFetch, user } from './api/testing'
 import { safeNext } from './navigation'
-import { createAppRouter } from './router'
+import { createAppRouter, redirectOnUnauthorized } from './router'
 
 describe('guard роутера', () => {
   beforeEach(signOut)
@@ -32,6 +33,41 @@ describe('guard роутера', () => {
     const router = createAppRouter(createMemoryHistory())
 
     await router.push('/products/p1')
+
+    expect(router.currentRoute.value.name).toBe('product')
+  })
+})
+
+describe('401 с токеном', () => {
+  beforeEach(() => {
+    signIn({ access_token: 't', expires_at: null, user })
+    mockFetch(jsonResponse(401, { error: { code: 'UNAUTHENTICATED', message: 'expired' } }))
+  })
+  afterEach(() => {
+    signOut()
+    vi.unstubAllGlobals()
+  })
+
+  async function expire(path: string) {
+    const router = createAppRouter(createMemoryHistory())
+    redirectOnUnauthorized(router)
+    await router.push(path)
+    await request('GET', '/me').catch(() => {})
+    await router.isReady()
+    await new Promise((resolve) => setTimeout(resolve))
+    return router
+  }
+
+  it('со страницы, требующей входа, — на вход с возвратом, сессия сброшена', async () => {
+    const router = await expire('/orders/42')
+
+    expect(router.currentRoute.value.name).toBe('sign-in')
+    expect(router.currentRoute.value.query.next).toBe('/orders/42')
+    expect(session.token).toBeNull()
+  })
+
+  it('публичная страница остаётся на месте', async () => {
+    const router = await expire('/products/p1')
 
     expect(router.currentRoute.value.name).toBe('product')
   })

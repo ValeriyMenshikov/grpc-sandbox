@@ -1,11 +1,13 @@
 import {
   createRouter,
   createWebHistory,
+  type Router,
   type RouterHistory,
   type RouteRecordRaw,
 } from 'vue-router'
 
 import { session } from './api/auth'
+import { onUnauthorized } from './api/client'
 import CartPage from './pages/CartPage.vue'
 import CatalogPage from './pages/CatalogPage.vue'
 import ConfirmPage from './pages/ConfirmPage.vue'
@@ -43,4 +45,15 @@ export function createAppRouter(history: RouterHistory = createWebHistory()) {
     return true
   })
   return router
+}
+
+// 401 с токеном: сессия уже сброшена клиентом. Со страницы, требующей входа, — на вход с
+// возвратом; публичная (каталог, товар) остаётся на месте, просто без входа
+export function redirectOnUnauthorized(router: Router): void {
+  onUnauthorized(() => {
+    const current = router.currentRoute.value
+    if (current.meta.requiresAuth) {
+      void router.push({ name: 'sign-in', query: { next: current.fullPath } })
+    }
+  })
 }

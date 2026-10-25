@@ -22,15 +22,17 @@ export function jsonResponse(status: number, body: unknown): Response {
   })
 }
 
-// Подменяет глобальный `fetch`; ответы отдаются по очереди, последний — повторяется
+// Подменяет глобальный `fetch`; ответы отдаются по очереди, последний — повторяется.
+// Каждый вызов получает свою копию: тело `Response` читается один раз
 export function mockFetch(...responses: Response[]): Mock {
   const fetchMock = vi.fn()
+  const last = responses.at(-1)
+  const spare = last?.clone()
   for (const response of responses) {
     fetchMock.mockResolvedValueOnce(response)
   }
-  const last = responses.at(-1)
-  if (last !== undefined) {
-    fetchMock.mockImplementation(() => Promise.resolve(last.clone()))
+  if (spare !== undefined) {
+    fetchMock.mockImplementation(() => Promise.resolve(spare.clone()))
   }
   vi.stubGlobal('fetch', fetchMock)
   return fetchMock

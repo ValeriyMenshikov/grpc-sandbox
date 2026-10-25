@@ -133,13 +133,39 @@ describe('оформление из корзины', () => {
   })
 
   it('ключ из sessionStorage переживает перезагрузку посреди попытки', async () => {
-    sessionStorage.setItem(CHECKOUT_KEY_STORAGE, 'key-before-reload')
+    sessionStorage.setItem(
+      CHECKOUT_KEY_STORAGE,
+      JSON.stringify({ key: 'key-before-reload', cart: 'p1:2' }),
+    )
     vi.mocked(api.checkout).mockReturnValue(new Promise(() => {}))
     const { wrapper } = await mountApp('/cart')
 
     await wrapper.find('.checkout-button').trigger('click')
 
     expect(api.checkout).toHaveBeenCalledWith('key-before-reload')
+  })
+
+  it('ответ потерян, корзина изменилась — новый ключ, старый заказ не переигрывается', async () => {
+    vi.mocked(api.checkout)
+      .mockRejectedValueOnce(
+        parseApiError(504, { error: { code: 'DEADLINE_EXCEEDED', message: 'deadline' } }),
+      )
+      .mockReturnValueOnce(new Promise(() => {}))
+    const { wrapper, router } = await mountApp('/cart')
+    await wrapper.find('.checkout-button').trigger('click')
+    await flushPromises()
+
+    vi.mocked(api.getCart).mockResolvedValue({
+      ...filledCart,
+      items: [{ ...filledCart.items[0], quantity: 3 }],
+    })
+    await router.push('/sign-up')
+    await router.push('/cart')
+    await flushPromises()
+    await wrapper.find('.checkout-button').trigger('click')
+
+    const [first, second] = vi.mocked(api.checkout).mock.calls.map(([key]) => key)
+    expect(second).not.toBe(first)
   })
 
   it('успех ведёт на заказ и сбрасывает ключ', async () => {

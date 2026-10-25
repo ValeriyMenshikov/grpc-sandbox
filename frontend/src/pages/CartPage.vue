@@ -20,7 +20,7 @@ const {
   pending: checkoutPending,
   error: checkoutError,
   submit: submitCheckout,
-} = useCheckout()
+} = useCheckout(cart)
 
 async function load(): Promise<void> {
   loading.value = true

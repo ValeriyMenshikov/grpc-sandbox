@@ -45,10 +45,10 @@
 Маркетплейс: покупатель регистрируется, ищет товары, кладёт их в корзину, оформляет заказ, следит за доставкой и пишет в поддержку. Продавец загружает и выгружает свой каталог.
 
 ```
-Браузер ──HTTP/JSON──> gateway (BFF) ──gRPC──> user-service ───────────────> Postgres, Redis
-                                     ├─gRPC──> catalog-service ─────────────> Postgres
-                                     └─gRPC──> order-service ──gRPC──> catalog-service (StockService)
-                                                    └──> Postgres, Redis
+Браузер ──HTTP──> frontend (nginx) ──/api──> gateway (BFF) ──gRPC──> user-service ──────────> Postgres, Redis
+                                                           ├─gRPC──> catalog-service ─────────> Postgres
+                                                           └─gRPC──> order-service ──gRPC──> catalog-service (StockService)
+                                                                          └──> Postgres, Redis
                приложение поддержки ──gRPC──> support-service ──gRPC──> order-service
                                                     └──> Postgres
 Автотесты курса ──gRPC──> любой сервис;  ──SQL/Redis──> проверки состояния
@@ -56,6 +56,7 @@
 
 | Компонент | Порт (хост) | Протокол | За что отвечает |
 |---|---|---|---|
+| frontend | 3000 | HTTP (nginx) | Веб-интерфейс покупателя (Vue 3), прокси `/api` → gateway (docs/decisions.md §27). |
 | gateway | 8080 | REST (FastAPI) → gRPC | BFF для веб-фронта. |
 | user-service | 50051 | gRPC | Регистрация, подтверждение email, вход, профиль. |
 | catalog-service | 50052 | gRPC | Каталог и поиск; импорт/экспорт товаров продавца; остатки и резервы (внутренний `StockService`). |
@@ -415,7 +416,7 @@ BFF на FastAPI с интеграцией nuke-di (`nuke_di.fastapi.setup`). gR
 - Postgres и Redis — `*-alpine`.
 - У каждого контейнера:
   - `healthcheck`, у gRPC-сервисов — через стандартный health service: маленький Python-скрипт в образе, без отдельных бинарей;
-  - `mem_limit`, ориентир: Python-сервис 128m, gateway 128m, Postgres 256m, Redis 64m (подбери по факту, итог ≤ ~1 ГБ);
+  - `mem_limit`, ориентир: Python-сервис 128m, gateway 128m, frontend (nginx) 128m, Postgres 256m, Redis 64m (подбери по факту; бюджет ≤ ~1 ГБ — по фактическому потреблению `make stats`, не по сумме лимитов);
   - `restart: unless-stopped`.
 - `depends_on` с `condition: service_healthy`. `make up` = `docker compose up -d --wait`.
 - Compose profiles зарезервированы под будущие тяжёлые компоненты: по умолчанию вне базового набора ничего не стартует.
@@ -476,7 +477,7 @@ BFF на FastAPI с интеграцией nuke-di (`nuke_di.fastapi.setup`). gR
 
 ## 11. Вне рамок
 
-Брокеры сообщений, отправка писем, платёжные провайдеры (оплата имитируется сменой статуса), TLS/mTLS, gRPC-Web/Envoy, метрики и трейсинг, Kubernetes, фронтенд, фреймворк автотестов курса.
+Брокеры сообщений, отправка писем, платёжные провайдеры (оплата имитируется сменой статуса), TLS/mTLS, gRPC-Web/Envoy, метрики и трейсинг, Kubernetes, фронтенд сверх веб-интерфейса покупателя (`frontend/`, docs/decisions.md §27), фреймворк автотестов курса.
 
 ## 12. Порядок работы
 

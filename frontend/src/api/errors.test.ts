@@ -67,7 +67,6 @@ describe('parseApiError', () => {
 
     expect(error.kind).toBe('unavailable')
     expect(error.message).toBe(UNAVAILABLE_MESSAGE)
-    expect(error.serverMessage).toBe('catalog is unavailable')
     expect(error.details).toEqual([detail])
   })
 
@@ -82,11 +81,10 @@ describe('parseApiError', () => {
   })
 
   it('сетевой сбой — network', () => {
-    const error = ApiError.network(new TypeError('Failed to fetch'))
+    const error = ApiError.network()
     expect(error.kind).toBe('network')
     expect(error.httpStatus).toBe(0)
     expect(error.message).toBe(NETWORK_MESSAGE)
-    expect(error.serverMessage).toBe('Failed to fetch')
   })
 })
 

@@ -17,11 +17,8 @@ export interface RequestOptions {
 
 type UnauthorizedHandler = () => void
 
-// По умолчанию — полная перезагрузка на вход; приложение подменяет на `router.push`
-let unauthorizedHandler: UnauthorizedHandler = () => {
-  const next = window.location.pathname + window.location.search
-  window.location.assign(`/sign-in?next=${encodeURIComponent(next)}`)
-}
+// Что делать после разлогина на 401 — ставит приложение (`redirectOnUnauthorized` в router.ts)
+let unauthorizedHandler: UnauthorizedHandler = () => {}
 
 export function onUnauthorized(handler: UnauthorizedHandler): void {
   unauthorizedHandler = handler
@@ -75,8 +72,8 @@ export async function request<T>(
       headers,
       body,
     })
-  } catch (cause) {
-    throw ApiError.network(cause)
+  } catch {
+    throw ApiError.network()
   }
 
   const payload = await readJson(response)
@@ -85,7 +82,7 @@ export async function request<T>(
   }
   const error = parseApiError(response.status, payload)
   // Разлогин — только если токен был отправлен: 401 у `/auth/sign-in` — неверный пароль,
-  // его показывает форма входа. 503/504 сессию не трогают.
+  // его показывает форма входа. 502/503/504 сессию не трогают.
   if (error.kind === 'unauthorized' && token !== null) {
     signOut()
     unauthorizedHandler()

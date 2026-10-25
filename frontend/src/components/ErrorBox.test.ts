@@ -67,7 +67,7 @@ describe('ErrorBox', () => {
   })
 
   it('сетевой сбой тоже можно повторить', () => {
-    const error = ApiError.network(new TypeError('Failed to fetch'))
+    const error = ApiError.network()
 
     const wrapper = mount(ErrorBox, { props: { error, retry: vi.fn() } })
 
