@@ -162,3 +162,12 @@ export function describeDetails(details: RichDetail[]): string[] {
 export function describeValidation(issues: ValidationIssue[]): string[] {
   return issues.map((issue) => `${issue.loc.join('.')}: ${issue.msg}`)
 }
+
+// Любое пойманное исключение — в `ApiError` для показа (`catch (e)` в страницах)
+export function toApiError(error: unknown): ApiError {
+  if (error instanceof ApiError) {
+    return error
+  }
+  const message = error instanceof Error ? error.message : String(error)
+  return new ApiError({ kind: 'unknown', httpStatus: 0, message })
+}

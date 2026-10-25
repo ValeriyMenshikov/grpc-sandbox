@@ -1,9 +1,25 @@
-import { createRouter, createWebHistory, type RouterHistory } from 'vue-router'
+import {
+  createRouter,
+  createWebHistory,
+  type RouterHistory,
+  type RouteRecordRaw,
+} from 'vue-router'
 
+import { session } from './api/auth'
+import ConfirmPage from './pages/ConfirmPage.vue'
 import PlaceholderPage from './pages/PlaceholderPage.vue'
+import SignInPage from './pages/SignInPage.vue'
+import SignUpPage from './pages/SignUpPage.vue'
+
+declare module 'vue-router' {
+  interface RouteMeta {
+    // Без токена — редирект на вход с `?next=`
+    requiresAuth?: boolean
+  }
+}
 
 // Маршруты UI; заглушки заменяются страницами по мере готовности.
-export const routes = [
+export const routes: RouteRecordRaw[] = [
   { path: '/', name: 'catalog', component: PlaceholderPage, props: { title: 'Каталог' } },
   {
     path: '/products/:id',
@@ -11,24 +27,39 @@ export const routes = [
     component: PlaceholderPage,
     props: { title: 'Товар' },
   },
-  { path: '/cart', name: 'cart', component: PlaceholderPage, props: { title: 'Корзина' } },
-  { path: '/orders', name: 'orders', component: PlaceholderPage, props: { title: 'Заказы' } },
-  { path: '/orders/:id', name: 'order', component: PlaceholderPage, props: { title: 'Заказ' } },
-  { path: '/sign-in', name: 'sign-in', component: PlaceholderPage, props: { title: 'Вход' } },
   {
-    path: '/sign-up',
-    name: 'sign-up',
+    path: '/cart',
+    name: 'cart',
     component: PlaceholderPage,
-    props: { title: 'Регистрация' },
+    props: { title: 'Корзина' },
+    meta: { requiresAuth: true },
   },
   {
-    path: '/confirm',
-    name: 'confirm',
+    path: '/orders',
+    name: 'orders',
     component: PlaceholderPage,
-    props: { title: 'Подтверждение email' },
+    props: { title: 'Заказы' },
+    meta: { requiresAuth: true },
   },
+  {
+    path: '/orders/:id',
+    name: 'order',
+    component: PlaceholderPage,
+    props: { title: 'Заказ' },
+    meta: { requiresAuth: true },
+  },
+  { path: '/sign-in', name: 'sign-in', component: SignInPage },
+  { path: '/sign-up', name: 'sign-up', component: SignUpPage },
+  { path: '/confirm', name: 'confirm', component: ConfirmPage },
 ]
 
 export function createAppRouter(history: RouterHistory = createWebHistory()) {
-  return createRouter({ history, routes })
+  const router = createRouter({ history, routes })
+  router.beforeEach((to) => {
+    if (to.meta.requiresAuth && session.token === null) {
+      return { name: 'sign-in', query: { next: to.fullPath } }
+    }
+    return true
+  })
+  return router
 }

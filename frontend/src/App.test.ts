@@ -17,13 +17,23 @@ describe('App', () => {
     expect(wrapper.find('main h1').text()).toBe('Каталог')
   })
 
-  it('рендерит заглушку маршрута по пути', async () => {
+  it('рендерит страницу по пути', async () => {
+    const router = createAppRouter(createMemoryHistory())
+    await router.push('/products/42')
+    await router.isReady()
+
+    const wrapper = mount(App, { global: { plugins: [router] } })
+
+    expect(wrapper.find('main h1').text()).toBe('Товар')
+  })
+
+  it('защищённый маршрут без входа показывает форму входа', async () => {
     const router = createAppRouter(createMemoryHistory())
     await router.push('/orders/42')
     await router.isReady()
 
     const wrapper = mount(App, { global: { plugins: [router] } })
 
-    expect(wrapper.find('main h1').text()).toBe('Заказ')
+    expect(wrapper.find('main h1').text()).toBe('Вход')
   })
 })
