@@ -17,9 +17,6 @@ class StreamCountInterceptor(CallInterceptor, Client):
     меняется (её фиксирует abort).
     """
 
-    def __init__(self) -> None:
-        pass
-
     @asynccontextmanager
     async def around(self, call: Call) -> AsyncIterator[None]:
         yield

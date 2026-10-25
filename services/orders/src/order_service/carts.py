@@ -1,6 +1,6 @@
 """Корзины в Redis: hash `cart:{user_id}` — product_id → количество."""
 
-from nuke_di import Client
+from nuke_di import Client, client_dataclass
 from stand_core.clients import Redis
 
 CART_KEY_PREFIX = "cart:"
@@ -23,9 +23,9 @@ def cart_key(user_id: str) -> str:
     return f"{CART_KEY_PREFIX}{user_id}"
 
 
+@client_dataclass
 class Carts(Client):
-    def __init__(self, redis: Redis) -> None:
-        self._redis = redis
+    _redis: Redis
 
     async def items(self, user_id: str) -> dict[str, int]:
         """Позиции корзины в порядке добавления (порядок полей hash в Redis)."""

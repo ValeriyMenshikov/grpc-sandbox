@@ -4,7 +4,7 @@ from collections.abc import Mapping
 from pathlib import Path
 
 import asyncpg
-from nuke_di import Client
+from nuke_di import Client, client_dataclass
 from stand_core.clients import Postgres
 from stand_core.grpc import Role
 
@@ -62,10 +62,10 @@ def _user(record: asyncpg.Record) -> User:
     )
 
 
+@client_dataclass
 class UserRepository(Client):
-    def __init__(self, postgres: Postgres, settings: UserSettings) -> None:
-        self._postgres = postgres
-        self._settings = settings
+    _postgres: Postgres
+    _settings: UserSettings
 
     async def connect(self) -> None:
         await self._postgres.apply_schema(SCHEMA_PATH)

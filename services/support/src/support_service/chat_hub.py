@@ -3,11 +3,11 @@
 import asyncio
 from collections.abc import AsyncIterator, Coroutine
 from contextlib import asynccontextmanager
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any
 
 import grpc
-from nuke_di import Client
+from nuke_di import Client, client_dataclass
 from stand_core.grpc import (
     DependencyUnavailable,
     FailedPrecondition,
@@ -200,13 +200,13 @@ class ChatSession:
         self._hub.broadcast(self.chat.chat_id, message_event(saved))
 
 
+@client_dataclass
 class ChatHub(Client):
     """Открытые стримы по чатам: сообщение чата получают все его стримы в этом процессе."""
 
-    def __init__(self, repository: ChatRepository, settings: SupportSettings) -> None:
-        self._repository = repository
-        self._settings = settings
-        self._sessions: dict[str, set[ChatSession]] = {}
+    _repository: ChatRepository
+    _settings: SupportSettings
+    _sessions: dict[str, set[ChatSession]] = field(default_factory=dict, init=False)
 
     @asynccontextmanager
     async def session(

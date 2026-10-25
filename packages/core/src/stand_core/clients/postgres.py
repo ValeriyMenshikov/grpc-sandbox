@@ -1,25 +1,26 @@
 """Postgres: пул asyncpg как nuke-di Client."""
 
 import asyncio
+from dataclasses import field
 from pathlib import Path
 
 import asyncpg
-from nuke_di import Client
+from nuke_di import Client, client_dataclass
 
 from stand_core.settings import Settings
 
 
+@client_dataclass
 class Postgres(Client):
     """Пул соединений asyncpg.
 
-    В `__init__` — только зависимости; пул создаётся в `connect()` и закрывается в `disconnect()`.
+    Поля — только зависимости; пул создаётся в `connect()` и закрывается в `disconnect()`.
     Сервис применяет свой идемпотентный `schema.sql` через `apply_schema` из connect() своего
     репозитория (он зависит от Postgres, поэтому подключается после него).
     """
 
-    def __init__(self, settings: Settings) -> None:
-        self._settings = settings
-        self._pool: asyncpg.Pool | None = None
+    _settings: Settings
+    _pool: asyncpg.Pool | None = field(default=None, init=False)
 
     @property
     def pool(self) -> asyncpg.Pool:

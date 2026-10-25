@@ -5,7 +5,7 @@ from datetime import timedelta
 from pathlib import Path
 
 import asyncpg
-from nuke_di import Client
+from nuke_di import Client, client_dataclass
 from stand_core.clients import Postgres
 
 from order_service.models import (
@@ -72,9 +72,9 @@ def _order(record: asyncpg.Record, items: Sequence[OrderItem]) -> Order:
     )
 
 
+@client_dataclass
 class OrderRepository(Client):
-    def __init__(self, postgres: Postgres) -> None:
-        self._postgres = postgres
+    _postgres: Postgres
 
     async def connect(self) -> None:
         await self._postgres.apply_schema(SCHEMA_PATH)

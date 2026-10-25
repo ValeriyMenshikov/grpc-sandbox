@@ -4,7 +4,7 @@ import uuid
 from pathlib import Path
 
 import asyncpg
-from nuke_di import Client
+from nuke_di import Client, client_dataclass
 from stand_core.clients import Postgres
 
 from support_service.models import Author, Chat, ChatMessage
@@ -51,9 +51,9 @@ def _message(record: asyncpg.Record) -> ChatMessage:
     )
 
 
+@client_dataclass
 class ChatRepository(Client):
-    def __init__(self, postgres: Postgres) -> None:
-        self._postgres = postgres
+    _postgres: Postgres
 
     async def connect(self) -> None:
         await self._postgres.apply_schema(SCHEMA_PATH)

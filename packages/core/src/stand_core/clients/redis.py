@@ -1,20 +1,22 @@
 """Redis: клиент redis.asyncio как nuke-di Client."""
 
-from nuke_di import Client
+from dataclasses import field
+
+from nuke_di import Client, client_dataclass
 from redis.asyncio import Redis as AsyncRedis
 
 from stand_core.settings import Settings
 
 
+@client_dataclass
 class Redis(Client):
     """Соединение с Redis (decode_responses=True: ключи и значения — str).
 
-    В `__init__` — только зависимости; клиент создаётся и проверяется PING в `connect()`.
+    Поля — только зависимости; клиент создаётся и проверяется PING в `connect()`.
     """
 
-    def __init__(self, settings: Settings) -> None:
-        self._settings = settings
-        self._client: AsyncRedis | None = None
+    _settings: Settings
+    _client: AsyncRedis | None = field(default=None, init=False)
 
     @property
     def client(self) -> AsyncRedis:

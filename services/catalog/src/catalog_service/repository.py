@@ -5,7 +5,7 @@ from datetime import datetime
 from pathlib import Path
 
 import asyncpg
-from nuke_di import Client
+from nuke_di import Client, client_dataclass
 from stand_core.clients import Postgres
 
 from catalog_service.models import (
@@ -129,11 +129,11 @@ def _product(record: asyncpg.Record) -> Product:
     )
 
 
+@client_dataclass
 class CatalogRepository(Client):
     """Товары, остатки и резервы. Схема и сиды применяются в `connect()`."""
 
-    def __init__(self, postgres: Postgres) -> None:
-        self._postgres = postgres
+    _postgres: Postgres
 
     async def connect(self) -> None:
         await self._postgres.apply_schema(SCHEMA_PATH)

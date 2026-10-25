@@ -12,7 +12,7 @@ TTL метки `pending` покрывает остаток deadline вызова
 import math
 from dataclasses import dataclass
 
-from nuke_di import Client
+from nuke_di import Client, client_dataclass
 from stand_core.clients import Redis
 from stand_core.grpc import time_remaining
 
@@ -58,9 +58,9 @@ class IdempotencyRecord:
         return f"{PENDING_PREFIX}{self.order_id}" if self.pending else self.order_id
 
 
+@client_dataclass
 class IdempotencyKeys(Client):
-    def __init__(self, redis: Redis) -> None:
-        self._redis = redis
+    _redis: Redis
 
     async def get(self, user_id: str, key: str) -> IdempotencyRecord | None:
         value = await self._redis.client.get(idempotency_key(user_id, key))

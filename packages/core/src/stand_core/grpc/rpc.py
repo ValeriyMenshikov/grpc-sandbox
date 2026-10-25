@@ -1,4 +1,4 @@
-"""Декоратор `rpc` и реестр хэндлеров (как в Nuke).
+"""Декоратор `rpc` и реестр хэндлеров.
 
 Хэндлер — свободная async-функция `(request, context, *clients)`. Тип вызова и классы сообщений
 берутся из type hints: `AsyncIterator[Req]` у `request` — входящий стрим, `-> AsyncIterator[Resp]` —

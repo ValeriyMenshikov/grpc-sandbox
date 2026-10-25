@@ -3,7 +3,7 @@
 import asyncio
 from datetime import timedelta
 
-from nuke_di import Client
+from nuke_di import Client, client_dataclass
 from stand_core.logging import get_logger
 
 from order_service.events import OrderEvents
@@ -17,6 +17,7 @@ logger = get_logger(__name__)
 MAX_POLL_INTERVAL_S = 0.5
 
 
+@client_dataclass
 class Fulfillment(Client):
     """Фоновая задача внутри order-service: раз в шаг двигает каждый заказ на статус вперёд.
 
@@ -24,12 +25,9 @@ class Fulfillment(Client):
     доставку с того же места. Каждая смена пишется в Postgres и публикуется в Redis.
     """
 
-    def __init__(
-        self, repository: OrderRepository, events: OrderEvents, settings: OrderSettings
-    ) -> None:
-        self._repository = repository
-        self._events = events
-        self._settings = settings
+    _repository: OrderRepository
+    _events: OrderEvents
+    _settings: OrderSettings
 
     @property
     def step(self) -> timedelta:

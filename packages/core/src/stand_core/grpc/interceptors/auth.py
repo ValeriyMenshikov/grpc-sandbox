@@ -5,7 +5,7 @@ from collections.abc import AsyncIterator, Mapping
 from contextlib import asynccontextmanager
 from enum import StrEnum
 
-from nuke_di import Client
+from nuke_di import Client, client_dataclass
 
 from stand_core.clients.sessions import Sessions
 from stand_core.grpc.context import (
@@ -53,12 +53,12 @@ def bearer_token(authorization: str | None) -> str | None:
     return token if scheme.lower() == "bearer" and token else None
 
 
+@client_dataclass
 class AuthInterceptor(CallInterceptor, Client):
     """Пользователь и его `authorization` кладутся в contextvars на время вызова."""
 
-    def __init__(self, settings: Settings, sessions: Sessions) -> None:
-        self._settings = settings
-        self._sessions = sessions
+    _settings: Settings
+    _sessions: Sessions
 
     @asynccontextmanager
     async def around(self, call: Call) -> AsyncIterator[None]:

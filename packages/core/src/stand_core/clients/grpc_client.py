@@ -2,11 +2,12 @@
 
 import os
 from collections.abc import Sequence
+from dataclasses import field
 from typing import ClassVar, TypeVar
 
 import grpc
 from google.protobuf.message import Message
-from nuke_di import Client
+from nuke_di import Client, client_dataclass
 
 from stand_core.grpc.context import authorization, request_id, time_remaining
 from stand_core.grpc.errors import DependencyUnavailable
@@ -18,6 +19,7 @@ ResponseT = TypeVar("ResponseT", bound=Message)
 UNAVAILABLE_CODES = frozenset({grpc.StatusCode.UNAVAILABLE, grpc.StatusCode.DEADLINE_EXCEEDED})
 
 
+@client_dataclass
 class GrpcClient(Client):
     """Канал grpc.aio к соседу + вызов с пробросом контекста входящего вызова.
 
@@ -43,9 +45,8 @@ class GrpcClient(Client):
     address_env: ClassVar[str]
     dependency: ClassVar[str]
 
-    def __init__(self, settings: Settings) -> None:
-        self._settings = settings
-        self._channel: grpc.aio.Channel | None = None
+    _settings: Settings
+    _channel: grpc.aio.Channel | None = field(default=None, init=False)
 
     @property
     def channel(self) -> grpc.aio.Channel:

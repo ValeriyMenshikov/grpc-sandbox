@@ -7,7 +7,7 @@ from contextlib import asynccontextmanager
 from datetime import datetime
 from typing import Any
 
-from nuke_di import Client
+from nuke_di import Client, client_dataclass
 from redis.asyncio.client import PubSub
 from stand_core.clients import Redis
 from stand_core.logging import get_logger
@@ -60,10 +60,10 @@ class Subscription:
         return None
 
 
+@client_dataclass
 class OrderEvents(Client):
-    def __init__(self, redis: Redis, settings: OrderSettings) -> None:
-        self._redis = redis
-        self._settings = settings
+    _redis: Redis
+    _settings: OrderSettings
 
     async def publish(self, change: StatusChange) -> None:
         await self._redis.client.publish(channel(change.order_id), encode(change))

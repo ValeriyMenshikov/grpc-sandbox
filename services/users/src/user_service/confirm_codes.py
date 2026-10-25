@@ -5,7 +5,7 @@
 
 import secrets
 
-from nuke_di import Client
+from nuke_di import Client, client_dataclass
 from stand_core.clients import Redis
 
 CONFIRM_KEY_PREFIX = "confirm:"
@@ -20,9 +20,9 @@ def generate_code() -> str:
     return f"{secrets.randbelow(10**CODE_DIGITS):0{CODE_DIGITS}d}"
 
 
+@client_dataclass
 class ConfirmCodes(Client):
-    def __init__(self, redis: Redis) -> None:
-        self._redis = redis
+    _redis: Redis
 
     async def save(self, email: str, code: str, ttl_seconds: int) -> None:
         await self._redis.client.set(confirm_key(email), code, ex=ttl_seconds)

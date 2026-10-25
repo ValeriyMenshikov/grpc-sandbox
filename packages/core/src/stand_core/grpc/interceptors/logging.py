@@ -22,9 +22,6 @@ class LoggingInterceptor(CallInterceptor, Client):
     логируются; секреты в остальных полях прячет процессор structlog.
     """
 
-    def __init__(self) -> None:
-        pass
-
     @asynccontextmanager
     async def around(self, call: Call) -> AsyncIterator[None]:
         started = time.perf_counter()

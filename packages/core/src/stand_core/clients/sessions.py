@@ -5,7 +5,7 @@
 
 import json
 
-from nuke_di import Client
+from nuke_di import Client, client_dataclass
 
 from stand_core.clients.redis import Redis
 from stand_core.grpc.context import CurrentUser, Role
@@ -30,9 +30,9 @@ def decode_session(raw: str | bytes) -> CurrentUser | None:
         return None
 
 
+@client_dataclass
 class Sessions(Client):
-    def __init__(self, redis: Redis) -> None:
-        self._redis = redis
+    _redis: Redis
 
     async def get(self, token: str) -> CurrentUser | None:
         raw = await self._redis.client.get(session_key(token))

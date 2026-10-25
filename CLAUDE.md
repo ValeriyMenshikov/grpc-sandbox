@@ -20,8 +20,8 @@
 - uv workspace: `pb/` (`stand-protos`), `packages/core` (модуль `stand_core`), `services/{users,catalog,orders,support,gateway}`. Модули сервисов — `user_service`, `catalog_service`, `order_service`, `support_service`, `gateway`.
 - Импорт сгенерированного кода: `from catalog.v1 import catalog_pb2`.
 - Каждый gRPC-сервис: `settings.py`, `models.py` (доменные модели, не proto), `repository.py` + `schema.sql`, `convert.py` (домен ↔ proto), `auth.py` (`AUTH_POLICIES`), `handlers/`, `main.py`.
-- gateway — не gRPC-сервис: эндпоинты — `api.py`, gRPC-клиенты к соседям — `clients.py`, JSON-модели ответов — `schemas.py`, маппинг gRPC → HTTP — `errors.py`, contextvars запроса ставит ASGI-middleware `context.py`; `handlers/`, `auth.py` и репозитория нет (docs/decisions.md §16).
-- Все зависимости — nuke-di `Client` (настройки, Postgres, Redis, репозитории, клиенты к соседям, интерцепторы), внедряются по type hint.
+- gateway — не gRPC-сервис: эндпоинты — `routers/<группа>.py` (группа = ресурс: `health`, `users`, `catalog`, `cart`, `orders`), их список — `routers/__init__.py` (`ROUTERS`), корневой роутер — `api.py`, общие query-параметры — `params.py`, gRPC-клиенты к соседям — `clients.py`, JSON-модели ответов — `schemas.py`, маппинг gRPC → HTTP — `errors.py`, contextvars запроса ставит ASGI-middleware `context.py`; `handlers/`, `auth.py` и репозитория нет (docs/decisions.md §16).
+- Все зависимости — nuke-di `Client` (настройки, Postgres, Redis, репозитории, клиенты к соседям, интерцепторы), внедряются по type hint. Клиент — `@client_dataclass` + `Client`, зависимости — поля (`_postgres: Postgres`; DI смотрит на тип, не на имя, поэтому поля приватные), своё состояние — `field(default=..., init=False)` и заполняется в `connect()`; `__init__` руками не пишем. Исключение — `Settings` и его подклассы: у них явный `__init__(self) -> None` (pydantic, docs/decisions.md §7).
 
 ## Хэндлеры
 

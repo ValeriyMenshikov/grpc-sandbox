@@ -76,10 +76,64 @@ protos/            контракты: common/v1, users/v1, catalog/v1, catalog/
 pb/                сгенерированный код (make gen), в git
 packages/core/     общая библиотека stand_core: Settings, логи, ошибки, декоратор rpc,
                    grpc_server, интерцепторы, клиенты Postgres/Redis и базовый gRPC-клиент
-services/<name>/   сервисы: users, catalog, orders, support, gateway
+services/<name>/   gRPC-сервисы: users, catalog, orders, support —
+                   src/<name>_service/{settings,models,repository + schema.sql,convert,auth,
+                   handlers/<method>_<in>_<out>.py,main}.py
+services/gateway/  REST-фасад: src/gateway/{routers/<группа>.py,api,params,clients,
+                   schemas,errors,context,main}.py
 tests/             тесты контрактов и smoke-сценарий (маркер stand)
 docker/Dockerfile  один образ для всех Python-сервисов
 ```
+
+## Зависимости: nuke-di
+
+Всё, что живёт дольше одного вызова (настройки, пул Postgres, Redis, репозитории, клиенты к соседям,
+интерцепторы), — это *клиент*: подкласс `nuke_di.Client`. Зависимости клиента объявляются полями
+dataclass через `@client_dataclass`, а не в `__init__` (имя поля для DI не важно, он смотрит на тип,
+поэтому поля приватные); контейнер `DI` создаёт каждого ровно раз,
+разбирает дерево по аннотациям и вызывает `connect()`/`disconnect()` в правильном порядке:
+
+```python
+@client_dataclass
+class OrderRepository(Client):
+    _postgres: Postgres  # зависимость: DI подставит единственный Postgres
+
+    async def connect(self) -> None:  # после connect() самого Postgres
+        await self._postgres.apply_schema(SCHEMA_PATH)
+```
+
+Внутреннее состояние (пул, канал, открытые стримы) — поле с `init=False`, его заполняет `connect()`:
+
+```python
+@client_dataclass
+class Postgres(Client):
+    _settings: Settings
+    _pool: asyncpg.Pool | None = field(default=None, init=False)
+```
+
+Исключение одно: `Settings` и его подклассы — pydantic-модели, у них свой `__init__(self) -> None`
+(иначе плагин nuke-di принял бы поля настроек за зависимости, docs/decisions.md §7).
+
+Хэндлеры и эндпоинты получают клиентов так же — по аннотации аргумента; `main.py` сервиса делает
+`inject_handlers(GRPC_HANDLERS)`, gateway — `nuke_di.fastapi.setup(app)`. В тестах клиент подменяется
+на фейк через `DI.override(OrderRepository, fake)`.
+
+## gateway: REST → gRPC
+
+`gateway` — не gRPC-сервис, а BFF для фронта: каждый эндпоинт — один вызов соседа и перевод ответа
+в JSON.
+
+- `routers/<группа>.py` — эндпоинты одной группы (`health`, `users`, `catalog`, `cart`, `orders`),
+  один `ClientRouter` на файл, имя группы = tag в OpenAPI (`/docs`)
+- `routers/__init__.py` — `ROUTERS`, список роутеров в порядке групп; `api.py` включает их в
+  корневой роутер, его берёт `main.py`
+- `params.py` — общие query-параметры (`page_size`, `page_token`) и границы int32/int64
+- `clients.py` — `UsersClient`, `CatalogClient`, `OrdersClient` на базовом `GrpcClient`
+- `schemas.py` — pydantic-модели ответов (не `MessageToDict`), `errors.py` — gRPC-код → HTTP-код,
+  `context.py` — ASGI-middleware, кладущий `authorization` и `x-request-id` в contextvars
+
+Новый эндпоинт: функция в нужном `routers/<группа>.py` (новая группа — новый модуль и строка в
+`ROUTERS`), вызов соседа — методом клиента из `clients.py`, ответ — модель из `schemas.py`.
 
 ## Команды
 
@@ -134,7 +188,7 @@ docker/Dockerfile  один образ для всех Python-сервисов
 
    Ошибки — доменные исключения из `stand_core.grpc` (`InvalidArgument`, `NotFound`, `FailedPrecondition`, ...): статус и details выставит интерцептор. `handlers/__init__.py` импортирует все модули хэндлеров.
 5. **Авторизация.** `auth.py` с `AUTH_POLICIES: dict[str, AuthPolicy]` на каждый метод (`"/<name>.v1.<Name>Service/GetThing": AuthPolicy.USER`). Метод без строки требует пользователя.
-6. **Клиенты.** Postgres/Redis — `stand_core.clients`; репозиторий — `Client` с `schema.sql` (схема `<name>`), применяется в `connect()`. Сосед — подкласс `GrpcClient` с `address_env = "<NEIGHBOUR>_ADDR"`.
+6. **Клиенты.** Postgres/Redis — `stand_core.clients`; репозиторий — `@client_dataclass` + `Client` с полем `_postgres: Postgres` и своим `schema.sql` (схема `<name>`), который применяется в `connect()`. Сосед — подкласс `GrpcClient` с `address_env = "<NEIGHBOUR>_ADDR"` и `dependency = "<neighbour>"`. Подробнее — раздел «Зависимости: nuke-di».
 7. **`main.py`** — копия `services/catalog/src/catalog_service/main.py` с заменой имён.
 8. **compose.** Блок с `<<: *python-service`, `command: ["python", "-m", "<name>_service.main"]`, `environment` (`<<: *common-env`, `GRPC_PORT`), `ports`, `depends_on` с `condition: service_healthy`, `healthcheck: *grpc-healthcheck`. Новые переменные — в `.env.example`. Не забудьте про бюджет памяти (`make stats`).
 9. **Тесты.** `services/<name>/tests/`: хэндлеры напрямую с фейками, `test_server.py` in-process со всеми интерцепторами, `test_wiring.py`. `make check && make test`.

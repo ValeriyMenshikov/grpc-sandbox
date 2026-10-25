@@ -11,8 +11,8 @@ from http.server import BaseHTTPRequestHandler, HTTPServer
 
 import pytest
 from gateway import healthcheck
-from gateway.api import router
 from gateway.clients import CatalogClient, OrdersClient, UsersClient
+from gateway.routers import ROUTERS
 from nuke_di import Dependencies
 from stand_core import Settings
 
@@ -55,10 +55,12 @@ def test_main_builds_app_with_all_routes() -> None:
 
 
 def test_routes_take_grpc_clients_from_di() -> None:
+    """Эндпоинты берём из роутеров групп: в корневом (`gateway.api`) FastAPI включает их лениво."""
     container = Dependencies()
 
-    for route in router.routes:
-        container.inject(getattr(route, "endpoint"))  # noqa: B009
+    for group in ROUTERS:
+        for route in group.routes:
+            container.inject(getattr(route, "endpoint"))  # noqa: B009
 
     resolved = {node.client_class for node in container.graph().nodes}
     assert {UsersClient, CatalogClient, OrdersClient, Settings} <= resolved

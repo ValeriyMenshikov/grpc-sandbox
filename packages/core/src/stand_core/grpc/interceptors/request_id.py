@@ -25,9 +25,6 @@ class RequestIdInterceptor(CallInterceptor, Client):
     дальше (`stand_core.grpc.context.time_remaining`).
     """
 
-    def __init__(self) -> None:
-        pass
-
     @asynccontextmanager
     async def around(self, call: Call) -> AsyncIterator[None]:
         value = metadata_value(call.context, REQUEST_ID_KEY) or str(uuid.uuid4())

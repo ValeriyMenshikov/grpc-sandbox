@@ -20,9 +20,6 @@ class ExceptionHandlingInterceptor(CallInterceptor, Client):
     и стек прочих исключений — только в лог, клиент видит `INTERNAL: Internal error`.
     """
 
-    def __init__(self) -> None:
-        pass
-
     @asynccontextmanager
     async def around(self, call: Call) -> AsyncIterator[None]:
         try:

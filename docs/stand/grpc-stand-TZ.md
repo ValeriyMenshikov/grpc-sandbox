@@ -114,7 +114,7 @@ grpc-stand/
 │   ├── catalog/  {...}
 │   ├── orders/   {...}
 │   ├── support/  {...}
-│   └── gateway/  {src/gateway/{api.py,main.py}, tests/}
+│   └── gateway/  {src/gateway/{routers/,api.py,main.py}, tests/}
 ├── pb/                         # сгенерированный код (в git — да; ruff/mypy его исключают)
 └── docs/
     ├── decisions.md
