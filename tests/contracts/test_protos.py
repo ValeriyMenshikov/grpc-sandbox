@@ -19,6 +19,8 @@ PB2_MODULES = [
     "orders.v1.orders_pb2_grpc",
     "support.v1.support_pb2",
     "support.v1.support_pb2_grpc",
+    "notifications.v1.notifications_pb2",
+    "notifications.v1.notifications_pb2_grpc",
 ]
 
 UNARY = (False, False)
@@ -65,6 +67,9 @@ EXPECTED_SERVICES: dict[str, dict[str, tuple[bool, bool]]] = {
     "support.v1.SupportService": {
         "Chat": BIDI,
         "GetChatHistory": UNARY,
+    },
+    "notifications.v1.NotificationService": {
+        "ListNotifications": UNARY,
     },
 }
 
@@ -190,3 +195,25 @@ def test_support_chat_oneofs() -> None:
     assert {f.name for f in incoming.fields} == {"join", "message", "read"}
     outgoing = pool.FindMessageTypeByName("support.v1.ChatResponse").oneofs_by_name["payload"]
     assert {f.name for f in outgoing.fields} == {"joined", "ack", "message", "agent_typing"}
+
+
+def test_notifications_list_request_and_statuses() -> None:
+    pool = descriptor_pool.Default()
+    status = pool.FindEnumTypeByName("notifications.v1.NotificationStatus")
+    assert [v.name for v in status.values] == [
+        "NOTIFICATION_STATUS_UNSPECIFIED",
+        "NOTIFICATION_STATUS_SENT",
+        "NOTIFICATION_STATUS_FAILED",
+    ]
+    req = pool.FindMessageTypeByName("notifications.v1.ListNotificationsRequest")
+    assert req.fields_by_name["to_email"].has_presence
+    assert _message_type_name(req.fields_by_name["pagination"]) == "common.v1.Pagination"
+    notification = pool.FindMessageTypeByName("notifications.v1.Notification")
+    assert {f.name for f in notification.fields} == {
+        "notification_id",
+        "to_email",
+        "subject",
+        "status",
+        "error",
+        "created_at",
+    }

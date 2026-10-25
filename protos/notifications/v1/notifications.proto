@@ -1,0 +1,44 @@
+syntax = "proto3";
+
+package notifications.v1;
+
+import "common/v1/money.proto";
+import "google/protobuf/timestamp.proto";
+
+// Журнал писем, отправленных notification-service. Порт 50055. Сами письма уходят не по gRPC:
+// сервис потребляет события из RabbitMQ (exchange stand.events) и шлёт их по SMTP в Mailpit.
+service NotificationService {
+  // Auth: service. Попытки отправки, новые первыми, фильтр по to_email, пагинация.
+  // Битый page_token или отрицательный page_size → INVALID_ARGUMENT.
+  rpc ListNotifications(ListNotificationsRequest) returns (ListNotificationsResponse);
+}
+
+enum NotificationStatus {
+  NOTIFICATION_STATUS_UNSPECIFIED = 0;
+  // SMTP-сервер принял письмо.
+  NOTIFICATION_STATUS_SENT = 1;
+  // Отправка не удалась или событие не разобрано; сообщение ушло в dead-letter.
+  NOTIFICATION_STATUS_FAILED = 2;
+}
+
+message Notification {
+  string notification_id = 1;
+  // Пусто, если событие не удалось разобрать и адресат неизвестен.
+  string to_email = 2;
+  string subject = 3;
+  NotificationStatus status = 4;
+  // Текст ошибки для NOTIFICATION_STATUS_FAILED, иначе пусто.
+  string error = 5;
+  google.protobuf.Timestamp created_at = 6;
+}
+
+message ListNotificationsRequest {
+  // Не задано — письма всем адресатам. Сравнение без учёта регистра.
+  optional string to_email = 1;
+  common.v1.Pagination pagination = 2;
+}
+
+message ListNotificationsResponse {
+  repeated Notification notifications = 1;
+  string next_page_token = 2;
+}

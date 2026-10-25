@@ -8,6 +8,7 @@
 | catalog-service | `localhost:50052` | `catalog.v1.CatalogService`, `catalog.v1.StockService`, `catalog.v2.CatalogService` |
 | order-service | `localhost:50053` | `orders.v1.OrderService` |
 | support-service | `localhost:50054` | `support.v1.SupportService` |
+| notification-service | `localhost:50055` | `notifications.v1.NotificationService` |
 | gateway | `http://localhost:8080` | REST, см. последний раздел |
 
 На каждом gRPC-порту включены reflection (`grpcurl -plaintext localhost:50052 list`) и `grpc.health.v1.Health`.
@@ -182,6 +183,14 @@
 ### GetChatHistory (unary)
 
 История чата по `order_id`, старые первыми, пагинация. Чата нет или он чужой → `NOT_FOUND` (`ResourceInfo` chat). Order-service не вызывается.
+
+## notifications.v1.NotificationService (50055)
+
+Журнал писем. Сами письма уходят не по gRPC: notification-service потребляет события из RabbitMQ (topic exchange `stand.events`, routing key `user.email_confirmation_requested`) и отправляет их по SMTP в Mailpit. Каждая попытка — запись в журнале со статусом `NOTIFICATION_STATUS_SENT` или `NOTIFICATION_STATUS_FAILED` (тогда в `error` — текст ошибки, а сообщение уходит в dead-letter без повторов).
+
+| Метод | Тип | Auth | Поведение | Ошибки |
+|---|---|---|---|---|
+| `ListNotifications` | unary | service | Попытки отправки `{notification_id, to_email, subject, status, error, created_at}`, новые первыми; фильтр `to_email` (не задан — все адресаты, сравнение без учёта регистра), пагинация. У неразобранного события `to_email` пустой. | отрицательный `page_size`, битый `page_token` → `INVALID_ARGUMENT` |
 
 ## gateway — REST (8080)
 
