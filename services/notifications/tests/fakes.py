@@ -1,10 +1,13 @@
-"""Журнал писем в памяти для unit-тестов."""
+"""Журнал писем в памяти и SMTP-заглушка для unit-тестов."""
 
 import uuid
 from datetime import UTC, datetime, timedelta
+from email.message import EmailMessage
 
+from notification_service.mailer import Mailer
 from notification_service.models import Notification, NotificationStatus
 from notification_service.repository import NotificationRepository
+from notification_service.templates import EmailContent
 
 EPOCH = datetime(2026, 1, 1, tzinfo=UTC)
 
@@ -36,3 +39,17 @@ class FakeRepository(NotificationRepository):
             if to_email is None or notification.to_email.lower() == to_email.lower()
         ]
         return matching[offset : offset + limit]
+
+
+class FakeMailer(Mailer):
+    """Запоминает письма вместо SMTP; `error` — что бросить вместо отправки."""
+
+    def __init__(self, error: Exception | None = None) -> None:
+        self.sent: list[tuple[str, EmailContent]] = []
+        self.error = error
+
+    async def send(self, to_email: str, content: EmailContent) -> EmailMessage:
+        if self.error is not None:
+            raise self.error
+        self.sent.append((to_email, content))
+        return EmailMessage()

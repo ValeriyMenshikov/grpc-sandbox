@@ -1,6 +1,6 @@
 """Точка входа notification-service: `python -m notification_service.main`."""
 
-from nuke_di import DI, Shutdown, worker
+from nuke_di import DI, BackgroundTasks, Shutdown, worker
 from stand_core.grpc import (
     GRPC_HANDLERS,
     grpc_server,
@@ -12,6 +12,7 @@ from stand_core.logging import configure_logging
 
 import notification_service.handlers  # noqa: F401  — регистрирует хэндлеры
 from notification_service.auth import AUTH_POLICIES
+from notification_service.consumer import EmailConsumer
 from notification_service.settings import NotificationSettings
 
 configure_logging(DI.resolve(NotificationSettings).log_level)
@@ -21,6 +22,8 @@ INTERCEPTORS = resolve_interceptors()  # DI.resolve каждого интерц�
 
 
 @worker
-async def serve(shutdown: Shutdown) -> None:
+async def serve(shutdown: Shutdown, tasks: BackgroundTasks, consumer: EmailConsumer) -> None:
+    # Потребитель очереди писем — asyncio-таск рядом с сервером; BackgroundTasks отменит его
+    tasks.spawn(consumer.run(), name="email-consumer")
     async with grpc_server(HANDLERS, INTERCEPTORS):
         await shutdown.wait()
