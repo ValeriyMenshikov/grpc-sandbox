@@ -26,15 +26,15 @@
 
 ## 5. mypy
 
-`make typecheck` передаёт mypy только существующие каталоги из `packages services tests`, чтобы цель работала на любом этапе разработки. `gen/` исключён.
+`make typecheck` передаёт mypy только существующие каталоги из `packages services tests`, чтобы цель работала на любом этапе разработки. `pb/` исключён.
 
-## 6. Proto-контракты и gen/
+## 6. Proto-контракты и pb/
 
 - Стиль — buf STANDARD: у каждого RPC свои `<Method>Request` / `<Method>Response` (даже `GetProduct` возвращает `GetProductResponse{product}`, а стримы — `ExportProductsResponse{product}`), значения enum с префиксом типа и нулевым `*_UNSPECIFIED` (`ORDER_STATUS_DELIVERED`, `USER_ROLE_SELLER`). Так контракт сразу проходит `buf lint`, а в уроках про `buf breaking` ломается только то, что сломано намеренно.
 - `common.v1.Pagination{page_size, page_token}` вкладывается в списочные запросы полем `pagination`; `next_page_token` лежит прямо в ответе.
 - Отчёт об импорте (`ImportReport` в ТЗ) — это сам `ImportProductsResponse` с полями `created`, `updated`, `failed`, `errors`, без лишней обёртки.
 - catalog.v2: `Product.price` (`common.v1.Money`) — поле 10, номер 6 (`price_kopecks` в v1) свободен и **не** `reserved`. Фильтры цены в v2 — `Money min_price/max_price` (8, 9), номера 3 и 4 из v1 не используются. `region_id` — поле 7; обязательность проверяет сервер (в proto3 нет required).
-- `gen/` — отдельный участник workspace `stand-protos` (`gen/pyproject.toml`), верхнеуровневые пакеты совпадают с каталогами protos: `common`, `users`, `catalog`, `orders`, `support`. Импорт: `from catalog.v1 import catalog_pb2`. `make gen` пересоздаёт только эти каталоги, `gen/pyproject.toml` не трогает, и докладывает `__init__.py` и `py.typed`.
+- `pb/` — отдельный участник workspace `stand-protos` (`pb/pyproject.toml`), верхнеуровневые пакеты совпадают с каталогами protos: `common`, `users`, `catalog`, `orders`, `support`. Импорт: `from catalog.v1 import catalog_pb2`. `make gen` пересоздаёт только эти каталоги, `pb/pyproject.toml` не трогает, и докладывает `__init__.py` и `py.typed`.
 - `.pyi` генерирует mypy-protobuf (`--mypy_out`, `--mypy_grpc_out`), а не `--pyi_out` protoc: оба пишут в один и тот же `*_pb2.pyi`, а стабы mypy-protobuf полнее (типизированные enum, oneof, gRPC-стабы для grpc.aio). Для mypy в dev-группе `types-grpcio` и `types-protobuf`.
 - Нижние границы `grpcio` и `protobuf` в `stand-protos` равны версиям генератора: сгенерированный код проверяет версию рантайма при импорте.
 
@@ -56,7 +56,7 @@
 - Health: общий статус `""` — `NOT_SERVING` до `start()`, затем `SERVING` вместе с каждым сервисом; перед `stop(grace)` — `enter_graceful_shutdown()` (всё `NOT_SERVING`). Reflection отдаёт сервисы хэндлеров, `grpc.health.v1.Health` и сам reflection.
 - Graceful stop — только при нормальном выходе из блока (`shutdown.wait()` вернулся); при исключении в блоке сразу `stop(None)` в `finally`.
 - `resolve_interceptors()` без аргументов резолвит `DEFAULT_INTERCEPTORS` (раздел 9); можно передать свой список. `inject_handlers` возвращает копию реестра, `GRPC_HANDLERS` не меняется.
-- Healthcheck для compose — `python -m stand_core.grpc.healthcheck [--addr] [--service] [--timeout]`. Вызов `Check` идёт через `channel.unary_unary`, а не `HealthStub`: в `types-grpcio-health-checking` у стаба нет методов, а `type: ignore` вне gen/ не используем. В dev-группе добавлены `types-grpcio-health-checking` и `types-grpcio-reflection`.
+- Healthcheck для compose — `python -m stand_core.grpc.healthcheck [--addr] [--service] [--timeout]`. Вызов `Check` идёт через `channel.unary_unary`, а не `HealthStub`: в `types-grpcio-health-checking` у стаба нет методов, а `type: ignore` вне pb/ не используем. В dev-группе добавлены `types-grpcio-health-checking` и `types-grpcio-reflection`.
 - Процесс `@worker`, остановленный SIGTERM, завершается кодом 143 (128 + сигнал) — так nuke-di сообщает об остановке по сигналу, это не ошибка.
 - Тесты stand_core изолируют глобальный `GRPC_HANDLERS` и сбрасывают structlog после каждого теста (conftest). Шаблон `main.py` проверяется end-to-end: `tests/example_main.py` запускается отдельным процессом, отвечает на вызов с внедрённым клиентом и останавливается по SIGTERM.
 
@@ -183,7 +183,7 @@
 
 ## 18. Проверка критериев приёмки
 
-- `make install && make gen && make check` — зелёные. `type: ignore` вне gen/ есть только в `packages/stand_core/tests/test_rpc.py`: тесты нарочно объявляют хэндлеры без аннотаций (`no-untyped-def`) и вызывают декорированный хэндлер с `context=None` (`arg-type`), чтобы проверить, что декоратор `rpc` отвергает такие функции при импорте. Без этих функций проверку не написать, поэтому исключение оставлено.
+- `make install && make gen && make check` — зелёные. `type: ignore` вне pb/ есть только в `packages/core/tests/test_rpc.py`: тесты нарочно объявляют хэндлеры без аннотаций (`no-untyped-def`) и вызывают декорированный хэндлер с `context=None` (`arg-type`), чтобы проверить, что декоратор `rpc` отвергает такие функции при импорте. Без этих функций проверку не написать, поэтому исключение оставлено.
 - `make check && make test` зелёные на 3.12 и 3.14 (497 тестов). Для 3.14 нужен обычный CPython, а не free-threaded `3.14t`: у grpcio и grpcio-tools нет колёс под `cp314t`, и сборка из исходников падает. uv может выбрать `3.14t`, если он установлен (`uv python find 3.14` это покажет), поэтому версию лучше указать точно: `UV_PROJECT_ENVIRONMENT=/tmp/stand-venv-314 PYTHON=3.14.2 make install check test` (см. §2).
 - Образ собирается с `PYTHON_VERSION=3.12` и `3.14` (python:3.12.15-slim и python:3.14.9-slim); на обоих образах `make up` поднимает все контейнеры healthy, и smoke проходит (`PYTHON_VERSION=3.14 make up && make smoke`).
 - Покрытие — `make cov` (pytest-cov по stand_core и пакетам сервисов, `--cov-fail-under=80`): всего 96,5%, stand_core — 84–100% по модулям, хэндлеры — 97–100%. Не покрыты только `main.py` сервисов (запуск процесса проверяется smoke и healthcheck в compose).
@@ -223,3 +223,7 @@
 ## 24. Исправления по пятому код-ревью
 
 - `ImportProducts` в режиме UPSERT перед записью блокирует уже существующие строки своих `offer_id` (`FOR UPDATE`) в порядке `product_id` — том же, что у `ReserveStock`. Раньше UPSERT брал замки строк в порядке фида, и импорт параллельно с резервом тех же товаров ловил deadlock: Postgres обрывал одну из транзакций, клиент получал `INTERNAL` (откат всего фида или упавший Checkout). Импорты одного продавца идут по очереди под advisory-замком `import:{seller_id}`: два фида с новыми `offer_id` в разном порядке иначе ловили deadlock на уникальном индексе.
+
+## 25. Раскладка каталогов: pb/ и packages/core
+
+- Сгенерированный код лежит в `pb/` (а не `gen/`), общая библиотека — в `packages/core/` (имя пакета и модуль остались `stand-core`/`stand_core`). Пути каталогов перечислены в корневом `pyproject.toml` (`tool.uv.workspace.members`, `mypy_path`, исключения ruff и mypy), в `Makefile` (цель `gen`) и в `uv.lock`: `uv sync --frozen` в `docker/Dockerfile` сверяет пути участников workspace, поэтому переименование каталога без `uv lock` ломает `make up` («Distribution not found at: file:///src/...»), а не только локальный `make install`.

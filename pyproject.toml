@@ -28,7 +28,7 @@ dev = [
 package = false
 
 [tool.uv.workspace]
-members = ["gen", "packages/*", "services/*"]
+members = ["pb", "packages/*", "services/*"]
 
 [tool.uv.sources]
 stand-core = { workspace = true }
@@ -37,7 +37,7 @@ stand-protos = { workspace = true }
 [tool.ruff]
 target-version = "py312"
 line-length = 100
-extend-exclude = ["gen"]
+extend-exclude = ["pb"]
 
 [tool.ruff.lint]
 select = ["E", "F", "W", "I", "B", "UP", "SIM", "RUF", "ASYNC", "PT"]
@@ -48,10 +48,10 @@ ignore = ["RUF001", "RUF002", "RUF003"]
 python_version = "3.12"
 strict = true
 plugins = ["nuke_di.mypy"]
-exclude = ["^gen/"]
+exclude = ["^pb/"]
 explicit_package_bases = true
 # Каждый новый сервис добавляет сюда свой src/
-mypy_path = ["packages/stand_core/src", "services/catalog/src", "services/users/src", "services/orders/src", "services/support/src", "services/gateway/src", "gen"]
+mypy_path = ["packages/core/src", "services/catalog/src", "services/users/src", "services/orders/src", "services/support/src", "services/gateway/src", "pb"]
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"

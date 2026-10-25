@@ -199,8 +199,8 @@ dependencies = [
 
 [package.metadata]
 requires-dist = [
-    { name = "stand-core", editable = "packages/stand_core" },
-    { name = "stand-protos", editable = "gen" },
+    { name = "stand-core", editable = "packages/core" },
+    { name = "stand-protos", editable = "pb" },
 ]
 
 [[package]]
@@ -372,8 +372,8 @@ dependencies = [
 [package.metadata]
 requires-dist = [
     { name = "fastapi", specifier = ">=0.115" },
-    { name = "stand-core", editable = "packages/stand_core" },
-    { name = "stand-protos", editable = "gen" },
+    { name = "stand-core", editable = "packages/core" },
+    { name = "stand-protos", editable = "pb" },
     { name = "uvicorn", specifier = ">=0.32" },
 ]
 
@@ -418,8 +418,8 @@ dev = [
 
 [package.metadata]
 requires-dist = [
-    { name = "stand-core", editable = "packages/stand_core" },
-    { name = "stand-protos", editable = "gen" },
+    { name = "stand-core", editable = "packages/core" },
+    { name = "stand-protos", editable = "pb" },
 ]
 
 [package.metadata.requires-dev]
@@ -848,8 +848,8 @@ dependencies = [
 
 [package.metadata]
 requires-dist = [
-    { name = "stand-core", editable = "packages/stand_core" },
-    { name = "stand-protos", editable = "gen" },
+    { name = "stand-core", editable = "packages/core" },
+    { name = "stand-protos", editable = "pb" },
 ]
 
 [[package]]
@@ -1137,7 +1137,7 @@ wheels = [
 [[package]]
 name = "stand-core"
 version = "0.1.0"
-source = { editable = "packages/stand_core" }
+source = { editable = "packages/core" }
 dependencies = [
     { name = "asyncpg" },
     { name = "googleapis-common-protos" },
@@ -1170,7 +1170,7 @@ requires-dist = [
 [[package]]
 name = "stand-protos"
 version = "0.1.0"
-source = { editable = "gen" }
+source = { editable = "pb" }
 dependencies = [
     { name = "grpcio" },
     { name = "protobuf" },
@@ -1215,8 +1215,8 @@ dependencies = [
 
 [package.metadata]
 requires-dist = [
-    { name = "stand-core", editable = "packages/stand_core" },
-    { name = "stand-protos", editable = "gen" },
+    { name = "stand-core", editable = "packages/core" },
+    { name = "stand-protos", editable = "pb" },
 ]
 
 [[package]]
@@ -1307,8 +1307,8 @@ dependencies = [
 
 [package.metadata]
 requires-dist = [
-    { name = "stand-core", editable = "packages/stand_core" },
-    { name = "stand-protos", editable = "gen" },
+    { name = "stand-core", editable = "packages/core" },
+    { name = "stand-protos", editable = "pb" },
 ]
 
 [[package]]

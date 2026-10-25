@@ -175,8 +175,8 @@ def rpc(method_name: str, package: str, service: str) -> Callable: ...
 ```python
 from typing import AsyncIterator
 from stand_core import Context, rpc
-from gen.catalog.v1 import catalog_pb2
-from gen.support.v1 import support_pb2
+from pb.catalog.v1 import catalog_pb2
+from pb.support.v1 import support_pb2
 
 
 @rpc("GetProduct", package="catalog.v1", service="CatalogService")  # unary

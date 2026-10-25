@@ -73,9 +73,9 @@ grpcurl -plaintext -H 'x-api-key: stand-secret-key' \
 
 ```
 protos/            контракты: common/v1, users/v1, catalog/v1, catalog/v2, orders/v1, support/v1
-gen/               сгенерированный код (make gen), в git
-packages/stand_core/  общая библиотека: Settings, логи, ошибки, декоратор rpc, grpc_server,
-                   интерцепторы, клиенты Postgres/Redis и базовый gRPC-клиент к соседям
+pb/                сгенерированный код (make gen), в git
+packages/core/     общая библиотека stand_core: Settings, логи, ошибки, декоратор rpc,
+                   grpc_server, интерцепторы, клиенты Postgres/Redis и базовый gRPC-клиент
 services/<name>/   сервисы: users, catalog, orders, support, gateway
 tests/             тесты контрактов и smoke-сценарий (маркер stand)
 docker/Dockerfile  один образ для всех Python-сервисов
@@ -86,7 +86,7 @@ docker/Dockerfile  один образ для всех Python-сервисов
 | Цель | Что делает |
 |---|---|
 | `make install` | `uv sync` всех пакетов workspace |
-| `make gen` | `protos/**` → `gen/` (protoc + mypy-protobuf) |
+| `make gen` | `protos/**` → `pb/` (protoc + mypy-protobuf) |
 | `make format` / `make lint` | ruff format + fix / проверка |
 | `make typecheck` | mypy strict |
 | `make check` | lint + typecheck |

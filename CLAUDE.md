@@ -5,7 +5,7 @@
 ## Команды
 
 - `make install` — `uv sync` всего workspace (после правки любого `pyproject.toml`)
-- `make gen` — после правки `protos/`; `gen/` коммитится, руками не редактируется
+- `make gen` — после правки `protos/`; `pb/` коммитится, руками не редактируется
 - `make check` — ruff format --check + ruff check + mypy strict; `make format` чинит формат
 - `make test` — все тесты без smoke; `make cov` — с покрытием (порог 80%)
 - `make up` / `make down` / `make reset` — стенд в docker compose (`up` пересобирает образ)
@@ -17,7 +17,7 @@
 
 ## Устройство
 
-- uv workspace: `gen/` (`stand-protos`), `packages/stand_core`, `services/{users,catalog,orders,support,gateway}`. Модули сервисов — `user_service`, `catalog_service`, `order_service`, `support_service`, `gateway`.
+- uv workspace: `pb/` (`stand-protos`), `packages/core` (модуль `stand_core`), `services/{users,catalog,orders,support,gateway}`. Модули сервисов — `user_service`, `catalog_service`, `order_service`, `support_service`, `gateway`.
 - Импорт сгенерированного кода: `from catalog.v1 import catalog_pb2`.
 - Каждый gRPC-сервис: `settings.py`, `models.py` (доменные модели, не proto), `repository.py` + `schema.sql`, `convert.py` (домен ↔ proto), `auth.py` (`AUTH_POLICIES`), `handlers/`, `main.py`.
 - gateway — не gRPC-сервис: эндпоинты — `api.py`, gRPC-клиенты к соседям — `clients.py`, JSON-модели ответов — `schemas.py`, маппинг gRPC → HTTP — `errors.py`, contextvars запроса ставит ASGI-middleware `context.py`; `handlers/`, `auth.py` и репозитория нет (docs/decisions.md §16).
@@ -76,7 +76,7 @@ async def serve(shutdown: Shutdown) -> None:
 
 ## Соглашения
 
-- Python ≥ 3.12, mypy strict, ruff (строка 100). `type: ignore` вне `gen/` — нельзя (единственное обоснованное исключение — `packages/stand_core/tests/test_rpc.py`).
+- Python ≥ 3.12, mypy strict, ruff (строка 100). `type: ignore` вне `pb/` — нельзя (единственное обоснованное исключение — `packages/core/tests/test_rpc.py`).
 - Комментарии, докстринги, docs — на русском; сообщения ошибок gRPC — на английском.
 - Новая переменная окружения — в `.env.example`, `docker-compose.yml` (с дефолтом `${VAR:-...}`) и `Settings` сервиса.
 - Порт внутри контейнера (`GRPC_PORT`, у gateway `HTTP_PORT`) задаётся в compose литералом и в `.env.example` не выносится; порт на хосте меняется через `<NAME>_PORT`.
