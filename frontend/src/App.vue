@@ -9,4 +9,8 @@ import AppHeader from './components/AppHeader.vue'
   <main class="app-main">
     <RouterView />
   </main>
+  <footer class="app-footer">
+    Учебный gRPC-стенд маркетплейса. REST-фасад — <code>/api</code>,
+    его OpenAPI — <a href="/api/docs">/api/docs</a>.
+  </footer>
 </template>

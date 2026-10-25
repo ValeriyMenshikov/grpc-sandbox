@@ -78,6 +78,9 @@ function retry(): void {
 <template>
   <section class="orders-page">
     <h1>Заказы</h1>
+    <p class="page-sub muted">
+      Заказы из order-service. Доставка идёт фоновыми шагами — статус обновляется сам.
+    </p>
     <div class="filters">
       <select
         v-model="status"
@@ -121,7 +124,10 @@ function retry(): void {
             </RouterLink>
           </td>
           <td class="status">
-            {{ ORDER_STATUS_LABELS[order.status] }}
+            <span
+              class="badge"
+              :class="`badge-${order.status.toLowerCase()}`"
+            >{{ ORDER_STATUS_LABELS[order.status] }}</span>
           </td>
           <td>{{ formatDate(order.created_at) }}</td>
           <td class="price">

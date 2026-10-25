@@ -52,6 +52,9 @@ onMounted(load)
 <template>
   <section class="cart-page">
     <h1>Корзина</h1>
+    <p class="page-sub muted">
+      Корзина живёт в Redis. Остаток проверяет бэкенд при оформлении.
+    </p>
     <p
       v-if="loading && cart === null"
       class="loading muted"

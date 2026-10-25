@@ -61,7 +61,10 @@ watch(
         </dd>
         <dt>Статус</dt>
         <dd class="status">
-          {{ ORDER_STATUS_LABELS[order.status] }}
+          <span
+            class="badge"
+            :class="`badge-${order.status.toLowerCase()}`"
+          >{{ ORDER_STATUS_LABELS[order.status] }}</span>
           <span
             v-if="active"
             class="muted polling"

@@ -134,6 +134,9 @@ function retry(): void {
 <template>
   <section class="catalog-page">
     <h1>Каталог</h1>
+    <p class="page-sub muted">
+      Товары из catalog-service: поиск, фильтры и сортировка уходят в gRPC через REST-фасад.
+    </p>
     <form
       class="filters"
       @submit.prevent="apply"

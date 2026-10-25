@@ -1,51 +1,177 @@
+/* Оформление фронтенда: токены (светлая и тёмная темы), затем блоки — шапка, формы,
+   каталог, таблицы, прогресс заказа, состояния. Шрифты системные: стенд работает офлайн. */
+
 :root {
-  font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
-  line-height: 1.5;
-  color: #1f2328;
-  background: #f6f8fa;
+  --bg: #f4f5fa;
+  --surface: #ffffff;
+  --surface-2: #f6f7fb;
+  --border: #e4e7f0;
+  --border-soft: #eef0f6;
+  --text: #10131c;
+  --muted: #646d82;
+  --accent: #5048e5;
+  --accent-strong: #3f36d6;
+  --accent-soft: #eeedfd;
+  --success: #0f8a4b;
+  --success-soft: #e7f7ee;
+  --warn: #9a5b00;
+  --warn-soft: #fff4e0;
+  --danger: #cf2538;
+  --danger-soft: #fdedef;
+  --code-bg: #141827;
+  --code-text: #e7e9f5;
+
+  --radius: 14px;
+  --radius-sm: 10px;
+  --radius-pill: 999px;
+  --shadow-sm: 0 1px 2px rgb(16 19 28 / 6%), 0 1px 3px rgb(16 19 28 / 4%);
+  --shadow-md: 0 12px 32px -12px rgb(16 19 28 / 22%);
+  --ring: 0 0 0 3px color-mix(in srgb, var(--accent) 22%, transparent);
+
+  font-family: system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', sans-serif;
+  font-size: 15px;
+  line-height: 1.55;
+  color: var(--text);
+  background: var(--bg);
+  -webkit-font-smoothing: antialiased;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #0c0f17;
+    --surface: #141926;
+    --surface-2: #1a2030;
+    --border: #262e42;
+    --border-soft: #1f2636;
+    --text: #e9ecf6;
+    --muted: #95a0b8;
+    --accent: #8b87f6;
+    --accent-strong: #a6a2ff;
+    --accent-soft: #1e2135;
+    --success: #4ed08b;
+    --success-soft: #12271d;
+    --warn: #e3a35a;
+    --warn-soft: #2a2114;
+    --danger: #f98090;
+    --danger-soft: #2a1620;
+    --code-bg: #0a0d16;
+    --shadow-sm: 0 1px 2px rgb(0 0 0 / 40%);
+    --shadow-md: 0 12px 32px -12px rgb(0 0 0 / 60%);
+  }
 }
 
 body {
   margin: 0;
+  min-height: 100vh;
+  /* Мягкое свечение акцента у верхней кромки — фон не выглядит плоским */
+  background:
+    radial-gradient(70rem 24rem at 50% -14rem, color-mix(in srgb, var(--accent) 16%, transparent), transparent),
+    var(--bg);
+}
+
+::selection {
+  background: color-mix(in srgb, var(--accent) 24%, transparent);
+}
+
+h1 {
+  margin: 0 0 0.35rem;
+  font-size: clamp(1.55rem, 1.2rem + 1.2vw, 2rem);
+  font-weight: 650;
+  letter-spacing: -0.02em;
+}
+
+h1 + .page-sub {
+  margin: 0 0 1.5rem;
 }
 
 a {
-  color: #0969da;
+  color: var(--accent);
   text-decoration: none;
 }
 
+a:hover {
+  color: var(--accent-strong);
+  text-decoration: underline;
+}
+
+code {
+  padding: 0.1rem 0.35rem;
+  border-radius: 6px;
+  background: var(--surface-2);
+  font-family: ui-monospace, 'SF Mono', Menlo, monospace;
+  font-size: 0.88em;
+}
+
+.muted {
+  color: var(--muted);
+}
+
+/* ——— Шапка ——— */
+
 .app-header {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  border-bottom: 1px solid var(--border);
+  background: color-mix(in srgb, var(--surface) 82%, transparent);
+  backdrop-filter: blur(14px);
+}
+
+.header-inner {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 1rem;
-  padding: 0.75rem 1.5rem;
-  background: #fff;
-  border-bottom: 1px solid #d0d7de;
+  gap: 1.25rem;
+  max-width: 1080px;
+  margin: 0 auto;
+  padding: 0.7rem 1.5rem;
+}
+
+.app-header .brand {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  font-weight: 650;
+  letter-spacing: -0.01em;
+  color: var(--text);
+}
+
+.app-header .brand:hover {
+  color: var(--text);
+  text-decoration: none;
+}
+
+.app-header .brand::before {
+  content: '';
+  width: 1.7rem;
+  height: 1.7rem;
+  border-radius: 9px;
+  background: linear-gradient(135deg, var(--accent), color-mix(in srgb, var(--accent) 45%, #ff7ac6));
+  box-shadow: var(--shadow-sm);
 }
 
 .app-header nav {
   display: flex;
-  gap: 1rem;
+  gap: 0.25rem;
+  margin-right: auto;
 }
 
-.app-header .brand {
-  font-weight: 600;
-  color: inherit;
+.app-header nav a {
+  padding: 0.35rem 0.75rem;
+  border-radius: var(--radius-pill);
+  color: var(--muted);
+  font-weight: 550;
+  font-size: 0.93rem;
 }
 
-.app-header .router-link-exact-active {
-  font-weight: 600;
+.app-header nav a:hover {
+  background: var(--surface-2);
+  color: var(--text);
+  text-decoration: none;
 }
 
-.app-main {
-  max-width: 960px;
-  margin: 0 auto;
-  padding: 1.5rem;
-}
-
-.muted {
-  color: #656d76;
+.app-header nav a.router-link-exact-active {
+  background: var(--accent-soft);
+  color: var(--accent-strong);
 }
 
 .app-header .account {
@@ -54,263 +180,785 @@ a {
   gap: 0.75rem;
 }
 
-.app-header .user .muted {
-  margin-left: 0.5rem;
-  font-size: 0.875rem;
+.app-header .user {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.25;
+  font-size: 0.9rem;
+  font-weight: 550;
+  text-align: right;
 }
 
-.auth-page {
-  max-width: 420px;
+.app-header .user .muted {
+  margin: 0;
+  font-size: 0.78rem;
+  font-weight: 400;
 }
+
+.app-main {
+  max-width: 1080px;
+  margin: 0 auto;
+  padding: 2rem 1.5rem 3rem;
+}
+
+.app-footer {
+  max-width: 1080px;
+  margin: 0 auto;
+  padding: 1.5rem;
+  border-top: 1px solid var(--border-soft);
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+
+/* ——— Поля и кнопки ——— */
+
+input[type='text'],
+input[type='email'],
+input[type='password'],
+input[type='search'],
+input[type='number'],
+select {
+  padding: 0.5rem 0.7rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: inherit;
+  font: inherit;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+
+input::placeholder {
+  color: var(--muted);
+}
+
+input:focus-visible,
+select:focus-visible {
+  border-color: var(--accent);
+  box-shadow: var(--ring);
+  outline: none;
+}
+
+button {
+  padding: 0.5rem 1rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: inherit;
+  font: inherit;
+  font-weight: 550;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s, box-shadow 0.15s, transform 0.1s;
+}
+
+button:hover:not(:disabled) {
+  background: var(--surface-2);
+  border-color: color-mix(in srgb, var(--border) 60%, var(--muted));
+}
+
+button:active:not(:disabled) {
+  transform: translateY(1px);
+}
+
+button:focus-visible {
+  box-shadow: var(--ring);
+  outline: none;
+}
+
+button:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+/* Главное действие страницы */
+button[type='submit'],
+.checkout-button {
+  border-color: transparent;
+  background: var(--accent);
+  color: #fff;
+  box-shadow: 0 6px 16px -8px color-mix(in srgb, var(--accent) 80%, transparent);
+}
+
+button[type='submit']:hover:not(:disabled),
+.checkout-button:hover:not(:disabled) {
+  background: var(--accent-strong);
+  border-color: transparent;
+}
+
+.remove {
+  border-color: transparent;
+  background: none;
+  color: var(--danger);
+}
+
+.remove:hover:not(:disabled) {
+  background: var(--danger-soft);
+  border-color: transparent;
+}
+
+.load-more {
+  display: block;
+  min-width: 13rem;
+  margin: 0 auto;
+}
+
+/* ——— Формы ——— */
 
 .form {
   display: flex;
   flex-direction: column;
-  gap: 0.75rem;
+  gap: 0.9rem;
   margin-bottom: 1rem;
 }
 
 .form label {
   display: flex;
   flex-direction: column;
-  gap: 0.25rem;
+  gap: 0.3rem;
+  color: var(--muted);
+  font-size: 0.85rem;
+  font-weight: 550;
+}
+
+.form label input {
+  color: var(--text);
+  font-size: 1rem;
+}
+
+.form fieldset {
+  display: flex;
+  gap: 1.25rem;
+  margin: 0;
+  padding: 0.6rem 0.85rem 0.8rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+}
+
+.form fieldset legend {
+  padding: 0 0.35rem;
+  color: var(--muted);
+  font-size: 0.85rem;
+  font-weight: 550;
 }
 
 .form fieldset label {
   flex-direction: row;
   align-items: center;
+  gap: 0.4rem;
+  color: var(--text);
+  font-size: 0.95rem;
+  font-weight: 400;
 }
 
-.form input[type='text'],
-.form input[type='email'],
-.form input[type='password'] {
-  padding: 0.4rem 0.5rem;
-  border: 1px solid #d0d7de;
-  border-radius: 6px;
-  font: inherit;
+.form fieldset input {
+  accent-color: var(--accent);
 }
 
-button {
-  padding: 0.4rem 0.9rem;
-  border: 1px solid #d0d7de;
-  border-radius: 6px;
-  background: #fff;
-  font: inherit;
-  cursor: pointer;
+.form button[type='submit'] {
+  margin-top: 0.25rem;
+  padding: 0.6rem 1rem;
 }
 
-button:disabled {
-  opacity: 0.6;
-  cursor: default;
+/* ——— Вход, регистрация, подтверждение ——— */
+
+.auth-page {
+  max-width: 25rem;
+  margin: 1.5rem auto;
+  padding: 1.75rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+  box-shadow: var(--shadow-md);
+}
+
+.auth-page h1 {
+  font-size: 1.45rem;
+}
+
+.auth-page > p:last-child {
+  margin-bottom: 0;
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+.auth-note {
+  margin: 0.75rem 0 1.25rem;
+  padding: 0.7rem 0.85rem;
+  border: 1px solid color-mix(in srgb, var(--accent) 25%, var(--border));
+  border-radius: var(--radius-sm);
+  background: var(--accent-soft);
+  color: var(--text);
+  font-size: 0.87rem;
+}
+
+.auth-note code {
+  background: var(--surface);
+  border: 1px solid var(--border);
 }
 
 .hint {
-  padding: 0.5rem 0.75rem;
-  background: #fff;
-  border: 1px solid #d0d7de;
-  border-radius: 6px;
+  margin: 0 0 1.25rem;
+  padding: 0.7rem 0.85rem;
+  border-radius: var(--radius-sm);
+  background: var(--code-bg);
+  color: var(--code-text);
+  font-size: 0.82rem;
   overflow-x: auto;
 }
 
-.error-box {
-  margin: 1rem 0;
-  padding: 0.75rem 1rem;
-  background: #ffebe9;
-  border: 1px solid #ff8182;
-  border-radius: 6px;
+.hint code {
+  padding: 0;
+  background: none;
+  color: inherit;
 }
 
-.error-box .error-message {
-  margin: 0;
-  font-weight: 600;
-}
-
-.error-box .error-code {
-  margin-left: 0.5rem;
-  font-family: ui-monospace, monospace;
-  font-weight: 400;
-  color: #656d76;
-}
-
-.error-box .error-details {
-  margin: 0.5rem 0 0;
-  padding-left: 1.25rem;
-}
-
-.error-box .error-retry {
-  margin-top: 0.5rem;
-}
+/* ——— Фильтры ——— */
 
 .filters {
   display: flex;
   flex-wrap: wrap;
-  gap: 0.5rem;
-  margin-bottom: 1rem;
+  align-items: center;
+  gap: 0.6rem;
+  margin-bottom: 1.25rem;
+  padding: 0.8rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+  box-shadow: var(--shadow-sm);
 }
 
-.filters input,
-.filters select,
-.quantity-input input {
-  padding: 0.4rem 0.5rem;
-  border: 1px solid #d0d7de;
-  border-radius: 6px;
-  font: inherit;
+.filters input[name='query'] {
+  flex: 1 1 14rem;
+}
+
+.filters input[name='category'] {
+  flex: 0 1 11rem;
 }
 
 .filters input[name='min_price'],
 .filters input[name='max_price'] {
-  width: 8rem;
+  width: 7.5rem;
 }
 
-.input-error {
-  color: #cf222e;
+.filters button[type='submit'] {
+  margin-left: auto;
 }
+
+/* ——— Каталог ——— */
 
 .product-list {
-  margin: 0 0 1rem;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(15rem, 1fr));
+  gap: 1rem;
+  margin: 0 0 1.5rem;
   padding: 0;
   list-style: none;
 }
 
 .product-item {
-  display: grid;
-  grid-template-columns: 1fr 8rem 9rem;
-  gap: 1rem;
-  padding: 0.5rem 0.75rem;
-  background: #fff;
-  border: 1px solid #d0d7de;
-  border-top: none;
-}
-
-.product-item:first-child {
-  border-top: 1px solid #d0d7de;
-}
-
-.product-item .price,
-.product-props .price {
-  font-weight: 600;
-  text-align: right;
-}
-
-.product-props {
-  display: grid;
-  grid-template-columns: max-content 1fr;
-  gap: 0.25rem 1rem;
-}
-
-.product-props dd {
-  margin: 0;
-}
-
-.product-props .price {
-  text-align: left;
-}
-
-.add-to-cart,
-.quantity-input {
   display: flex;
-  align-items: center;
-  gap: 0.5rem;
+  flex-direction: column;
+  gap: 0.55rem;
+  padding: 1.1rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+  box-shadow: var(--shadow-sm);
+  transition: transform 0.15s, box-shadow 0.15s, border-color 0.15s;
 }
 
-.quantity-input input {
-  width: 4.5rem;
-  text-align: center;
+.product-item:hover {
+  transform: translateY(-2px);
+  border-color: color-mix(in srgb, var(--accent) 35%, var(--border));
+  box-shadow: var(--shadow-md);
 }
 
-.cart-table {
-  width: 100%;
-  border-collapse: collapse;
-  background: #fff;
+.product-item a {
+  color: var(--text);
+  font-size: 1.02rem;
+  font-weight: 600;
+  letter-spacing: -0.01em;
 }
 
-.cart-table th,
-.cart-table td {
-  padding: 0.5rem 0.75rem;
-  border: 1px solid #d0d7de;
+.product-item a:hover {
+  color: var(--accent-strong);
+  text-decoration: none;
+}
+
+.product-item .muted {
+  align-self: start;
+  padding: 0.15rem 0.55rem;
+  border-radius: var(--radius-pill);
+  background: var(--surface-2);
+  font-size: 0.78rem;
+}
+
+.product-item .price {
+  margin-top: auto;
+  font-size: 1.2rem;
+  font-weight: 700;
+  letter-spacing: -0.01em;
   text-align: left;
 }
 
-.cart-item.shortage {
-  background: #fff8c5;
-}
+/* ——— Карточка товара ——— */
 
-.shortage-note {
-  margin-left: 0.5rem;
-  color: #cf222e;
-  font-size: 0.875rem;
-}
-
-.total {
-  text-align: right;
-  font-size: 1.125rem;
-}
-
-.checkout {
-  text-align: right;
-}
-
-.orders-table {
-  width: 100%;
-  border-collapse: collapse;
-  background: #fff;
-}
-
-.orders-table th,
-.orders-table td {
-  padding: 0.5rem 0.75rem;
-  border: 1px solid #d0d7de;
-  text-align: left;
-}
-
-.orders-table .price {
-  text-align: right;
-}
-
+.product-props,
 .order-props {
   display: grid;
   grid-template-columns: max-content 1fr;
-  gap: 0.25rem 1rem;
+  gap: 0.1rem 1.5rem;
+  margin: 0 0 1.25rem;
+  padding: 1.1rem 1.25rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+  box-shadow: var(--shadow-sm);
 }
 
+.product-props dt,
+.order-props dt {
+  padding: 0.35rem 0;
+  color: var(--muted);
+  font-size: 0.88rem;
+}
+
+.product-props dd,
 .order-props dd {
+  margin: 0;
+  padding: 0.35rem 0;
+  font-weight: 550;
+}
+
+.product-props .price {
+  font-size: 1.15rem;
+  font-weight: 700;
+  text-align: left;
+}
+
+.add-to-cart {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 1rem 1.1rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+  box-shadow: var(--shadow-sm);
+}
+
+.add-to-cart button[type='submit'] {
+  padding: 0.55rem 1.25rem;
+}
+
+.added {
+  padding: 0.6rem 0.9rem;
+  border: 1px solid color-mix(in srgb, var(--success) 30%, transparent);
+  border-radius: var(--radius-sm);
+  background: var(--success-soft);
+  color: var(--success);
+  font-weight: 550;
+}
+
+/* Сегментированный счётчик количества */
+.quantity-input {
+  display: inline-flex;
+  align-items: center;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-pill);
+  background: var(--surface);
+}
+
+.quantity-input button {
+  width: 2.2rem;
+  height: 2.2rem;
+  padding: 0;
+  border: none;
+  border-radius: 0;
+  background: none;
+  color: var(--muted);
+  font-size: 1.05rem;
+}
+
+.quantity-input button:hover:not(:disabled) {
+  background: var(--surface-2);
+  color: var(--text);
+}
+
+.quantity-input input {
+  width: 3rem;
+  padding: 0.35rem 0;
+  border: none;
+  border-radius: 0;
+  background: none;
+  font-weight: 600;
+  text-align: center;
+  appearance: textfield;
+}
+
+.quantity-input input::-webkit-outer-spin-button,
+.quantity-input input::-webkit-inner-spin-button {
+  appearance: none;
   margin: 0;
 }
 
+/* ——— Таблицы ——— */
+
+.cart-table,
+.orders-table {
+  width: 100%;
+  margin-bottom: 1rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  border-collapse: separate;
+  border-spacing: 0;
+  overflow: hidden;
+  background: var(--surface);
+  box-shadow: var(--shadow-sm);
+}
+
+.cart-table th,
+.orders-table th {
+  padding: 0.6rem 0.9rem;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface-2);
+  color: var(--muted);
+  font-size: 0.74rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  text-align: left;
+}
+
+.cart-table td,
+.orders-table td {
+  padding: 0.7rem 0.9rem;
+  border-bottom: 1px solid var(--border-soft);
+  text-align: left;
+}
+
+.cart-table tbody tr:last-child td,
+.orders-table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.cart-table tbody tr:hover,
+.orders-table tbody tr:hover {
+  background: color-mix(in srgb, var(--surface-2) 60%, transparent);
+}
+
+/* Числовые колонки — по правому краю, вместе с их заголовками */
+.cart-table th:not(:first-child),
+.cart-table td:not(:first-child),
+.orders-table th:last-child,
+.orders-table td:last-child {
+  text-align: right;
+}
+
+.orders-table .price,
+.cart-table .price,
+.cart-table td:nth-child(2) {
+  font-weight: 600;
+}
+
+.cart-table a {
+  color: var(--text);
+  font-weight: 550;
+}
+
+.cart-table a:hover {
+  color: var(--accent-strong);
+}
+
+.orders-table .order-row a {
+  font-family: ui-monospace, 'SF Mono', Menlo, monospace;
+  font-size: 0.86rem;
+}
+
+.cart-item.shortage {
+  background: var(--warn-soft);
+}
+
+.shortage-note {
+  margin-left: 0.4rem;
+  padding: 0.1rem 0.45rem;
+  border-radius: var(--radius-pill);
+  background: var(--danger-soft);
+  color: var(--danger);
+  font-size: 0.78rem;
+  font-weight: 550;
+}
+
+.total {
+  margin: 0;
+  text-align: right;
+  color: var(--muted);
+}
+
+.total strong {
+  margin-left: 0.4rem;
+  color: var(--text);
+  font-size: 1.3rem;
+  letter-spacing: -0.02em;
+}
+
+.checkout {
+  margin: 1.25rem 0 0;
+  text-align: right;
+}
+
+.checkout-button {
+  padding: 0.65rem 1.5rem;
+  font-size: 1rem;
+}
+
+/* ——— Статусы заказа ——— */
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.18rem 0.6rem;
+  border: 1px solid transparent;
+  border-radius: var(--radius-pill);
+  background: var(--surface-2);
+  color: var(--muted);
+  font-size: 0.82rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.badge-created {
+  background: var(--accent-soft);
+  border-color: color-mix(in srgb, var(--accent) 25%, transparent);
+  color: var(--accent-strong);
+}
+
+.badge-paid,
+.badge-assembling,
+.badge-handed_to_courier {
+  background: var(--warn-soft);
+  border-color: color-mix(in srgb, var(--warn) 25%, transparent);
+  color: var(--warn);
+}
+
+.badge-delivered {
+  background: var(--success-soft);
+  border-color: color-mix(in srgb, var(--success) 30%, transparent);
+  color: var(--success);
+}
+
+.badge-cancelled {
+  background: var(--danger-soft);
+  border-color: color-mix(in srgb, var(--danger) 30%, transparent);
+  color: var(--danger);
+}
+
+.polling {
+  margin-left: 0.5rem;
+  font-size: 0.82rem;
+  font-weight: 400;
+}
+
+.order-id {
+  font-family: ui-monospace, 'SF Mono', Menlo, monospace;
+  font-size: 0.9rem;
+}
+
+/* Прогресс доставки: номера шагов в кружках, соединённые линией */
 .order-progress {
-  display: flex;
-  gap: 0.5rem;
-  margin: 1rem 0;
-  padding: 0;
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: 1fr;
+  margin: 0 0 1.5rem;
+  padding: 1.25rem 1rem 1.1rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+  box-shadow: var(--shadow-sm);
+  counter-reset: step;
   list-style: none;
 }
 
 .order-progress .step {
-  flex: 1;
-  padding: 0.4rem 0.5rem;
-  border: 1px solid #d0d7de;
-  border-radius: 6px;
-  background: #fff;
+  position: relative;
+  padding: 2.85rem 0.25rem 0;
+  color: var(--muted);
+  font-size: 0.85rem;
   text-align: center;
-  color: #656d76;
+  counter-increment: step;
 }
 
-.order-progress .step.done {
-  background: #dafbe1;
-  color: #1a7f37;
+.order-progress .step::before {
+  content: counter(step);
+  position: absolute;
+  top: 0;
+  left: 50%;
+  z-index: 1;
+  display: grid;
+  place-items: center;
+  width: 1.9rem;
+  height: 1.9rem;
+  border: 1px solid var(--border);
+  border-radius: 50%;
+  background: var(--surface);
+  color: var(--muted);
+  font-size: 0.85rem;
+  font-weight: 600;
+  transform: translateX(-50%);
+  transition: background 0.2s, border-color 0.2s, color 0.2s;
+}
+
+/* Линия до следующего шага */
+.order-progress .step::after {
+  content: '';
+  position: absolute;
+  top: 0.95rem;
+  left: 50%;
+  width: 100%;
+  height: 2px;
+  background: var(--border);
+}
+
+.order-progress .step:last-child::after {
+  display: none;
+}
+
+.order-progress .step.done::before {
+  content: '✓';
+  border-color: var(--accent);
+  background: var(--accent);
+  color: #fff;
+}
+
+.order-progress .step.done::after {
+  background: var(--accent);
 }
 
 .order-progress .step.current {
-  border-color: #0969da;
-  color: #0969da;
+  color: var(--text);
   font-weight: 600;
 }
 
+.order-progress .step.current::before {
+  border-color: var(--accent);
+  color: var(--accent);
+  box-shadow: var(--ring);
+}
+
 .order-cancelled {
-  margin: 1rem 0;
-  padding: 0.5rem 0.75rem;
-  background: #ffebe9;
-  border: 1px solid #ff8182;
-  border-radius: 6px;
+  margin: 0 0 1.5rem;
+  padding: 0.8rem 1rem;
+  border: 1px solid color-mix(in srgb, var(--danger) 30%, transparent);
+  border-radius: var(--radius);
+  background: var(--danger-soft);
+  color: var(--danger);
   font-weight: 600;
+}
+
+/* ——— Ошибки и состояния ——— */
+
+.error-box {
+  margin: 1.25rem 0;
+  padding: 0.85rem 1.1rem;
+  border: 1px solid color-mix(in srgb, var(--danger) 30%, transparent);
+  border-radius: var(--radius);
+  background: var(--danger-soft);
+  box-shadow: inset 3px 0 0 var(--danger);
+}
+
+.error-box .error-message {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+  margin: 0;
+  color: var(--danger);
+  font-weight: 600;
+}
+
+.error-box .error-code {
+  margin: 0;
+  padding: 0.05rem 0.4rem;
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--danger) 12%, transparent);
+  color: var(--danger);
+  font-family: ui-monospace, 'SF Mono', Menlo, monospace;
+  font-size: 0.78rem;
+  font-weight: 500;
+}
+
+.error-box .error-details {
+  margin: 0.5rem 0 0;
+  padding-left: 1.1rem;
+  color: var(--text);
+  font-size: 0.9rem;
+}
+
+.error-box .error-details li::marker {
+  color: var(--danger);
+}
+
+.error-box .error-retry {
+  margin-top: 0.75rem;
+  border-color: color-mix(in srgb, var(--danger) 30%, transparent);
+  background: var(--surface);
+}
+
+.input-error {
+  margin: 0 0 1rem;
+  color: var(--danger);
+  font-weight: 550;
+}
+
+.empty {
+  padding: 2.5rem 1rem;
+  border: 1px dashed var(--border);
+  border-radius: var(--radius);
+  text-align: center;
+}
+
+.loading {
+  padding: 1rem;
+  text-align: center;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    transition: none !important;
+  }
+
+  .product-item:hover {
+    transform: none;
+  }
+}
+
+@media (width <= 48rem) {
+  .header-inner {
+    flex-wrap: wrap;
+    gap: 0.75rem;
+    padding: 0.7rem 1rem;
+  }
+
+  .app-header nav {
+    order: 3;
+    width: 100%;
+    margin-right: 0;
+  }
+
+  .app-header .account {
+    margin-left: auto;
+  }
+
+  .app-main {
+    padding: 1.5rem 1rem 2.5rem;
+  }
+
+  .filters button[type='submit'] {
+    margin-left: 0;
+  }
+
+  .order-progress .step {
+    font-size: 0.75rem;
+  }
 }

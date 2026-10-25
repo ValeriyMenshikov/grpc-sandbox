@@ -34,7 +34,7 @@ async function submit(): Promise<void> {
 <template>
   <section class="auth-page">
     <h1>Вход</h1>
-    <p class="muted">
+    <p class="auth-note">
       Сид-продавец: <code>seller@stand.local</code> / <code>seller-password</code>
     </p>
     <form

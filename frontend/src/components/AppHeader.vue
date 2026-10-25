@@ -34,48 +34,50 @@ function onSignOut(): void {
 
 <template>
   <header class="app-header">
-    <RouterLink
-      to="/"
-      class="brand"
-    >
-      Стенд маркетплейса
-    </RouterLink>
-    <nav>
-      <RouterLink to="/">
-        Каталог
+    <div class="header-inner">
+      <RouterLink
+        to="/"
+        class="brand"
+      >
+        Стенд маркетплейса
       </RouterLink>
-      <RouterLink to="/cart">
-        Корзина
-      </RouterLink>
-      <RouterLink to="/orders">
-        Заказы
-      </RouterLink>
-    </nav>
-    <div class="account">
-      <template v-if="isSignedIn">
-        <span
-          v-if="session.user"
-          class="user"
-        >
-          {{ session.user.display_name || session.user.email }}
-          <span class="muted">{{ session.user.email }} · {{ session.user.role }}</span>
-        </span>
-        <button
-          type="button"
-          class="sign-out"
-          @click="onSignOut"
-        >
-          Выйти
-        </button>
-      </template>
-      <template v-else>
-        <RouterLink to="/sign-in">
-          Вход
+      <nav>
+        <RouterLink to="/">
+          Каталог
         </RouterLink>
-        <RouterLink to="/sign-up">
-          Регистрация
+        <RouterLink to="/cart">
+          Корзина
         </RouterLink>
-      </template>
+        <RouterLink to="/orders">
+          Заказы
+        </RouterLink>
+      </nav>
+      <div class="account">
+        <template v-if="isSignedIn">
+          <span
+            v-if="session.user"
+            class="user"
+          >
+            {{ session.user.display_name || session.user.email }}
+            <span class="muted">{{ session.user.email }} · {{ session.user.role }}</span>
+          </span>
+          <button
+            type="button"
+            class="sign-out"
+            @click="onSignOut"
+          >
+            Выйти
+          </button>
+        </template>
+        <template v-else>
+          <RouterLink to="/sign-in">
+            Вход
+          </RouterLink>
+          <RouterLink to="/sign-up">
+            Регистрация
+          </RouterLink>
+        </template>
+      </div>
     </div>
   </header>
 </template>
