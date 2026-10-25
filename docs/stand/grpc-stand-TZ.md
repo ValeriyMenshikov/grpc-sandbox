@@ -97,7 +97,7 @@ grpc-stand/
 │   ├── orders/v1/orders.proto
 │   └── support/v1/support.proto
 ├── packages/
-│   └── stand_core/             # общая библиотека
+│   └── core/                   # общая библиотека
 │       └── src/stand_core/
 │           ├── settings.py     # Settings как nuke-di Client (pydantic-settings)
 │           ├── clients/        # Postgres (asyncpg), Redis (redis.asyncio), базовый gRPC-клиент к соседям
@@ -115,7 +115,7 @@ grpc-stand/
 │   ├── orders/   {...}
 │   ├── support/  {...}
 │   └── gateway/  {src/gateway/{api.py,main.py}, tests/}
-├── gen/                        # сгенерированный код (в git — да; ruff/mypy его исключают)
+├── pb/                         # сгенерированный код (в git — да; ruff/mypy его исключают)
 └── docs/
     ├── decisions.md
     └── api.md                  # методы, статус-коды, metadata (раздел 6)
@@ -175,8 +175,8 @@ def rpc(method_name: str, package: str, service: str) -> Callable: ...
 ```python
 from typing import AsyncIterator
 from stand_core import Context, rpc
-from pb.catalog.v1 import catalog_pb2
-from pb.support.v1 import support_pb2
+from catalog.v1 import catalog_pb2
+from support.v1 import support_pb2
 
 
 @rpc("GetProduct", package="catalog.v1", service="CatalogService")  # unary
@@ -424,10 +424,10 @@ BFF на FastAPI с интеграцией nuke-di (`nuke_di.fastapi.setup`). gR
 | Цель | Что делает |
 |---|---|
 | `install` | `uv sync --all-packages --all-groups` |
-| `gen` | `grpc_tools.protoc` для всех `protos/**` → `gen/` с `--python_out --pyi_out --grpc_python_out` + стабы `mypy-protobuf` |
+| `gen` | `grpc_tools.protoc` для всех `protos/**` → `pb/` с `--python_out --pyi_out --grpc_python_out` + стабы `mypy-protobuf` |
 | `format` | `ruff format` + `ruff check --fix` |
 | `lint` | `ruff check` |
-| `typecheck` | `mypy` (strict, плагин nuke-di, `gen/` исключён) |
+| `typecheck` | `mypy` (strict, плагин nuke-di, `pb/` исключён) |
 | `check` | `lint` + `typecheck` |
 | `test` | тесты сервисов (раздел 9) |
 | `up` / `down` | `docker compose up -d --wait` / `docker compose down -v` |
@@ -458,7 +458,7 @@ BFF на FastAPI с интеграцией nuke-di (`nuke_di.fastapi.setup`). gR
 
 ## 10. Definition of Done
 
-- [ ] `make install && make gen && make check` — зелёные; mypy strict без `type: ignore` вне `gen/` (исключения обоснованы в `docs/decisions.md`).
+- [ ] `make install && make gen && make check` — зелёные; mypy strict без `type: ignore` вне `pb/` (исключения обоснованы в `docs/decisions.md`).
 - [ ] `make check && make test` проходят на Python 3.12 и 3.14 (`uv run --python 3.12 ...` / `--python 3.14`); стенд собирается с `PYTHON_VERSION=3.12` и `3.14`.
 - [ ] `make up` на чистой машине поднимает стенд, все контейнеры `healthy`.
 - [ ] `grpcurl -plaintext localhost:<port> list` показывает сервисы через reflection на 50051–50054, включая `catalog.v1` и `catalog.v2`.

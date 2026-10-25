@@ -20,7 +20,7 @@ DEFAULT_TIMEOUT_SECONDS = 2.0
 async def check(addr: str, service: str = "", deadline: float = DEFAULT_TIMEOUT_SECONDS) -> bool:
     """`True`, если `service` (пусто — сервер целиком) отвечает `SERVING`."""
     async with grpc.aio.insecure_channel(addr) as channel:
-        # Не HealthStub: в его стабах нет методов, а type: ignore вне gen/ не используем
+        # Не HealthStub: в его стабах нет методов, а type: ignore вне pb/ не используем
         health_check = channel.unary_unary(
             "/grpc.health.v1.Health/Check",
             request_serializer=health_pb2.HealthCheckRequest.SerializeToString,
