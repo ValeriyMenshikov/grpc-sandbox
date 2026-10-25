@@ -116,6 +116,10 @@ grpc-stand/
 │   ├── support/  {...}
 │   └── gateway/  {src/gateway/{routers/,api.py,main.py}, tests/}
 ├── pb/                         # сгенерированный код (в git — да; ruff/mypy его исключают)
+├── frontend/                   # веб-интерфейс покупателя: Vue 3 + Vite, nginx-прокси /api → gateway
+│   ├── src/{api,composables,components,pages}/
+│   ├── nginx/default.conf.template
+│   └── Dockerfile              # node:22-alpine (сборка) → nginx:alpine
 └── docs/
     ├── decisions.md
     └── api.md                  # методы, статус-коды, metadata (раздел 6)

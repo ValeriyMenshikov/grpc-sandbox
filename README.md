@@ -39,6 +39,7 @@ grpcurl -plaintext -H 'x-api-key: stand-secret-key' \
 
 | Компонент | Порт (хост) | Протокол | За что отвечает |
 |---|---|---|---|
+| frontend | 3000 | HTTP (nginx) | Веб-интерфейс покупателя (Vue 3), прокси `/api` → gateway |
 | gateway | 8080 | REST (FastAPI) → gRPC | BFF для веб-фронта |
 | user-service | 50051 | gRPC | Регистрация, подтверждение email, вход, профиль |
 | catalog-service | 50052 | gRPC | Каталог и поиск (v1 и v2); импорт/экспорт товаров продавца; остатки и резервы (`StockService`) |
@@ -52,10 +53,10 @@ grpcurl -plaintext -H 'x-api-key: stand-secret-key' \
 ## Архитектура
 
 ```
-Браузер ──HTTP/JSON──> gateway (BFF) ──gRPC──> user-service ───────────────> Postgres, Redis
-                                     ├─gRPC──> catalog-service ─────────────> Postgres, Redis
-                                     └─gRPC──> order-service ──gRPC──> catalog-service (StockService)
-                                                    └──> Postgres, Redis
+Браузер ──HTTP──> frontend (nginx) ──/api──> gateway (BFF) ──gRPC──> user-service ──────────> Postgres, Redis
+                                                           ├─gRPC──> catalog-service ─────────> Postgres, Redis
+                                                           └─gRPC──> order-service ──gRPC──> catalog-service (StockService)
+                                                                          └──> Postgres, Redis
                приложение поддержки ──gRPC──> support-service ──gRPC──> order-service
                                                     └──> Postgres, Redis
 Автотесты курса ──gRPC──> любой сервис;  ──SQL/Redis──> проверки состояния
@@ -81,6 +82,8 @@ services/<name>/   gRPC-сервисы: users, catalog, orders, support —
                    handlers/<method>_<in>_<out>.py,main}.py
 services/gateway/  REST-фасад: src/gateway/{routers/<группа>.py,api,params,clients,
                    schemas,errors,context,main}.py
+frontend/          веб-интерфейс покупателя: Vue 3 + Vite, src/{api,composables,components,pages},
+                   nginx/default.conf.template, Dockerfile (node → nginx)
 tests/             тесты контрактов и smoke-сценарий (маркер stand)
 docker/Dockerfile  один образ для всех Python-сервисов
 ```
@@ -147,6 +150,8 @@ class Postgres(Client):
 | `make test` | тесты stand_core и сервисов, без smoke |
 | `make cov` | тесты с покрытием (порог 80%) |
 | `make smoke` | smoke-сценарий против поднятого стенда |
+| `make front-install` | `npm ci` фронтенда |
+| `make front-lint` / `make front-test` | ESLint + vue-tsc / Vitest фронтенда (в `check`/`test` не входят) |
 | `make up` / `make down` | поднять (с пересборкой образа, `--wait`) / остановить и удалить данные |
 | `make reset` | `down` + `up` |
 | `make logs` / `make ps` / `make stats` | логи, статус, память контейнеров |
@@ -166,7 +171,18 @@ class Postgres(Client):
 | support | ~40 МБ | 128m |
 | postgres | ~75 МБ | 256m |
 | redis | ~19 МБ | 64m |
-| **Итого** | **~320 МБ** | **960 МБ** |
+| frontend | ~8 МБ | 128m |
+| **Итого** | **~330 МБ** | **1088 МБ** |
+
+## Фронтенд
+
+Веб-интерфейс покупателя в `frontend/`: Vue 3, TypeScript, Vite, Vue Router, без UI-библиотеки. Вход, регистрация и подтверждение email, каталог с поиском, фильтрами и пагинацией, карточка товара, корзина, оформление заказа, список заказов и страница заказа с прогрессом доставки.
+
+- Адрес — `http://localhost:3000`, порт на хосте — `FRONTEND_PORT`. Сервис `frontend` поднимается вместе со стендом (`make up`).
+- Прокси: браузер ходит только на origin фронта. nginx отдаёт SPA (глубокие ссылки вроде `/orders/<id>` получают `index.html`) и проксирует `/api/*` на `${GATEWAY_URL}/*` со срезанным префиксом (`/api/products` → `http://gateway:8080/products`), поэтому CORS не нужен. Адрес gateway резолвится на каждый запрос: фронт стартует и остаётся `healthy` при остановленном gateway, а `/api` в это время отвечает 502/504, и UI показывает «сервис недоступен». Healthcheck — собственный `/healthz` nginx.
+- Вход: сид-продавец `seller@stand.local` / `seller-password` (он может пользоваться корзиной и оформлять заказы). Новый пользователь после регистрации вводит код подтверждения, который лежит в Redis: `docker compose exec redis redis-cli get confirm:<email>`. Экран подтверждения показывает эту команду с подставленным email.
+- Разработка с хоста: `npm ci --prefix frontend` (или `make front-install`), затем `cd frontend && npm run dev`. Vite dev-proxy отправляет `/api/*` на `http://localhost:${GATEWAY_PORT:-8080}` со срезанным префиксом, как nginx, поэтому стенд (хотя бы gateway и его соседи) должен быть поднят.
+- Проверки: `make front-lint` (ESLint + vue-tsc) и `make front-test` (Vitest). В `make check` / `make test` они не входят.
 
 ## Как добавить новый сервис
 
