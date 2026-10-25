@@ -1,6 +1,6 @@
 <script setup lang="ts">
 // Корзина: позиции с ценой за единицу и доступным остатком (нехватка подсвечивается), итог,
-// удаление позиции. Ответ `DELETE` — уже обновлённая корзина.
+// удаление позиции, оформление заказа. Ответ `DELETE` — уже обновлённая корзина.
 import { onMounted, ref } from 'vue'
 import { RouterLink } from 'vue-router'
 
@@ -9,12 +9,18 @@ import { ApiError, toApiError } from '../api/errors'
 import { formatMoney } from '../api/money'
 import type { Cart } from '../api/types'
 import ErrorBox from '../components/ErrorBox.vue'
+import { useCheckout } from '../composables/useCheckout'
 
 const cart = ref<Cart | null>(null)
 const loading = ref(false)
 const error = ref<ApiError | null>(null)
 // product_id позиции, которая сейчас удаляется
 const removing = ref<string | null>(null)
+const {
+  pending: checkoutPending,
+  error: checkoutError,
+  submit: submitCheckout,
+} = useCheckout()
 
 async function load(): Promise<void> {
   loading.value = true
@@ -113,6 +119,21 @@ onMounted(load)
         </table>
         <p class="total">
           Итого: <strong>{{ formatMoney(cart.total) }}</strong>
+        </p>
+        <ErrorBox
+          v-if="checkoutError"
+          :error="checkoutError"
+          :retry="submitCheckout"
+        />
+        <p class="checkout">
+          <button
+            type="button"
+            class="checkout-button"
+            :disabled="checkoutPending || removing !== null"
+            @click="submitCheckout"
+          >
+            {{ checkoutPending ? 'Оформляем…' : 'Оформить заказ' }}
+          </button>
         </p>
       </template>
     </template>

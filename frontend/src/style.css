@@ -245,3 +245,72 @@ button:disabled {
   text-align: right;
   font-size: 1.125rem;
 }
+
+.checkout {
+  text-align: right;
+}
+
+.orders-table {
+  width: 100%;
+  border-collapse: collapse;
+  background: #fff;
+}
+
+.orders-table th,
+.orders-table td {
+  padding: 0.5rem 0.75rem;
+  border: 1px solid #d0d7de;
+  text-align: left;
+}
+
+.orders-table .price {
+  text-align: right;
+}
+
+.order-props {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: 0.25rem 1rem;
+}
+
+.order-props dd {
+  margin: 0;
+}
+
+.order-progress {
+  display: flex;
+  gap: 0.5rem;
+  margin: 1rem 0;
+  padding: 0;
+  list-style: none;
+}
+
+.order-progress .step {
+  flex: 1;
+  padding: 0.4rem 0.5rem;
+  border: 1px solid #d0d7de;
+  border-radius: 6px;
+  background: #fff;
+  text-align: center;
+  color: #656d76;
+}
+
+.order-progress .step.done {
+  background: #dafbe1;
+  color: #1a7f37;
+}
+
+.order-progress .step.current {
+  border-color: #0969da;
+  color: #0969da;
+  font-weight: 600;
+}
+
+.order-cancelled {
+  margin: 1rem 0;
+  padding: 0.5rem 0.75rem;
+  background: #ffebe9;
+  border: 1px solid #ff8182;
+  border-radius: 6px;
+  font-weight: 600;
+}
