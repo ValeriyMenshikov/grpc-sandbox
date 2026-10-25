@@ -8,10 +8,11 @@ PROTO_FILES := $(shell find protos -name '*.proto' 2>/dev/null | sort)
 # Верхнеуровневые пакеты pb/ = каталоги protos/ (pyproject.toml в pb/ не трогаем)
 GEN_PACKAGES := $(addprefix pb/,$(notdir $(wildcard protos/*)))
 
-.PHONY: help install gen format lint typecheck check test cov smoke up down logs ps stats reset
+.PHONY: help install gen format lint typecheck check test cov smoke up down logs ps stats reset \
+	front-install front-lint front-test
 
 help: ## Список целей
-	@grep -E '^[a-z-]+:.*## ' $(MAKEFILE_LIST) | awk -F ':.*## ' '{printf "  %-10s %s\n", $$1, $$2}'
+	@grep -E '^[a-z-]+:.*## ' $(MAKEFILE_LIST) | awk -F ':.*## ' '{printf "  %-14s %s\n", $$1, $$2}'
 
 install: ## Установить зависимости всех пакетов workspace
 	$(UV) sync --all-packages --all-groups $(if $(PYTHON),--python $(PYTHON))
@@ -66,3 +67,14 @@ stats: ## Потребление памяти контейнерами
 	docker stats --no-stream
 
 reset: down up ## Пересоздать стенд с чистыми данными
+
+NPM ?= npm
+
+front-install: ## Установить зависимости фронтенда (npm ci)
+	$(NPM) ci --prefix frontend
+
+front-lint: ## ESLint + vue-tsc фронтенда
+	$(NPM) run lint --prefix frontend
+
+front-test: ## Тесты фронтенда (Vitest)
+	$(NPM) run test --prefix frontend

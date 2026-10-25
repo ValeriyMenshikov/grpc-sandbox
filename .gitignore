@@ -222,3 +222,6 @@ __marimo__/
 # Стенд
 .idea/
 .ralphex/
+
+# Фронтенд
+node_modules/
