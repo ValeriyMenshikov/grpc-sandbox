@@ -4,5 +4,6 @@ from stand_core.grpc import AuthPolicy
 
 NOTIFICATION_SERVICE = "/notifications.v1.NotificationService"
 
-# Методы появляются вместе с хэндлерами
-AUTH_POLICIES: dict[str, AuthPolicy] = {}
+AUTH_POLICIES: dict[str, AuthPolicy] = {
+    f"{NOTIFICATION_SERVICE}/ListNotifications": AuthPolicy.SERVICE,
+}

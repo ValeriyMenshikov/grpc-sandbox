@@ -248,7 +248,9 @@ async def test_published_event_becomes_email(
         monkeypatch.setenv("RABBITMQ_URL", RABBITMQ_URL)
         monkeypatch.setenv("SMTP_HOST", SMTP_HOST)
         monkeypatch.setenv("SMTP_PORT", str(SMTP_PORT))
-        # Свои очереди и dead-letter: не отнимать сообщения у notification-service из compose
+        # Свои exchange, очереди и dead-letter: notification-service из compose не отнимает
+        # сообщения и не шлёт второе письмо на тот же адрес
+        monkeypatch.setenv("EVENTS_EXCHANGE", f"test.stand.events.{suffix}")
         monkeypatch.setenv("EMAIL_QUEUE", f"test.notifications.email.{suffix}")
         monkeypatch.setenv("DEAD_LETTER_EXCHANGE", f"test.stand.events.dead.{suffix}")
         monkeypatch.setenv("DEAD_LETTER_QUEUE", f"test.notifications.email.dead.{suffix}")
@@ -300,6 +302,7 @@ async def test_published_event_becomes_email(
             await channel.queue_delete(settings.email_queue)
             await channel.queue_delete(settings.dead_letter_queue)
             await channel.exchange_delete(settings.dead_letter_exchange)
+            await channel.exchange_delete(settings.events_exchange)
             await rabbit.disconnect()
 
 
