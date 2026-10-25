@@ -9,10 +9,10 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 class Settings(BaseSettings, Client):
     """Общие настройки сервисов стенда.
 
-    nuke-di Client-синглтон: хэндлеры и клиенты получают его по type hint. Адреса Postgres и Redis
-    не имеют значений по умолчанию: сервис, которому они нужны, без них не стартует (см. `Postgres`,
-    `Redis`). Настройки конкретного сервиса — в подклассе в коде сервиса; подкласс тоже объявляет
-    `__init__(self) -> None` (см. ниже).
+    nuke-di Client-синглтон: хэндлеры и клиенты получают его по type hint. Адреса Postgres, Redis и
+    RabbitMQ не имеют значений по умолчанию: сервис, которому они нужны, без них не стартует
+    (см. `Postgres`, `Redis`, `Rabbit`). Настройки конкретного сервиса — в подклассе в коде сервиса;
+    подкласс тоже объявляет `__init__(self) -> None` (см. ниже).
     """
 
     model_config = SettingsConfigDict(extra="ignore", frozen=True)
@@ -40,3 +40,6 @@ class Settings(BaseSettings, Client):
 
     postgres_dsn: str | None = None
     redis_url: str | None = None
+    rabbitmq_url: str | None = None
+    # Topic exchange доменных событий стенда (см. `stand_core.events`)
+    events_exchange: str = "stand.events"
