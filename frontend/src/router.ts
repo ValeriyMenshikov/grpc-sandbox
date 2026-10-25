@@ -6,8 +6,11 @@ import {
 } from 'vue-router'
 
 import { session } from './api/auth'
+import CartPage from './pages/CartPage.vue'
+import CatalogPage from './pages/CatalogPage.vue'
 import ConfirmPage from './pages/ConfirmPage.vue'
 import PlaceholderPage from './pages/PlaceholderPage.vue'
+import ProductPage from './pages/ProductPage.vue'
 import SignInPage from './pages/SignInPage.vue'
 import SignUpPage from './pages/SignUpPage.vue'
 
@@ -20,20 +23,9 @@ declare module 'vue-router' {
 
 // Маршруты UI; заглушки заменяются страницами по мере готовности.
 export const routes: RouteRecordRaw[] = [
-  { path: '/', name: 'catalog', component: PlaceholderPage, props: { title: 'Каталог' } },
-  {
-    path: '/products/:id',
-    name: 'product',
-    component: PlaceholderPage,
-    props: { title: 'Товар' },
-  },
-  {
-    path: '/cart',
-    name: 'cart',
-    component: PlaceholderPage,
-    props: { title: 'Корзина' },
-    meta: { requiresAuth: true },
-  },
+  { path: '/', name: 'catalog', component: CatalogPage },
+  { path: '/products/:id', name: 'product', component: ProductPage },
+  { path: '/cart', name: 'cart', component: CartPage, meta: { requiresAuth: true } },
   {
     path: '/orders',
     name: 'orders',

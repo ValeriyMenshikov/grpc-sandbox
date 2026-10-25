@@ -1,9 +1,15 @@
 import { mount } from '@vue/test-utils'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { createMemoryHistory } from 'vue-router'
 
+import * as api from './api/endpoints'
 import App from './App.vue'
 import { createAppRouter } from './router'
+
+// Страницы ходят в API при монтировании — здесь достаточно, чтобы запросы не завершались
+vi.mock('./api/endpoints')
+vi.mocked(api.searchProducts).mockReturnValue(new Promise(() => {}))
+vi.mocked(api.getProduct).mockReturnValue(new Promise(() => {}))
 
 describe('App', () => {
   it('монтируется и рендерит главную через роутер', async () => {
