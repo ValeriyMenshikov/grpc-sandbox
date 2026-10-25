@@ -29,7 +29,7 @@
 | # | Ограничение |
 |---|---|
 | C1 | Только Python, **3.12+**: `requires-python = ">=3.12"`, ruff `target-version = "py312"`, mypy `python_version = "3.12"`. Не использовать возможности новее 3.12. Стенд должен запускаться на 3.12, 3.13 и 3.14. |
-| C2 | Инфраструктура — **только Postgres и Redis**. Никаких Kafka, ZooKeeper, RabbitMQ, NATS, почтовых сервисов, Envoy, Prometheus и т.п. |
+| C2 | Инфраструктура — **только Postgres, Redis, RabbitMQ и Mailpit**. Ничего сверх этого списка: никаких Kafka, ZooKeeper, NATS, Envoy, Prometheus и т.п. RabbitMQ — шина событий (письма), Mailpit — локальный почтовый ящик, наружу почта не уходит (docs/decisions.md §28). |
 | C3 | Весь стенд в покое укладывается примерно в **1 ГБ RAM** (замер `docker stats` после `make up` и прогона smoke-сценария, результат — в README). |
 | C4 | DI — только **[nuke-di](https://github.com/troyan-dy/nuke-di)** (PyPI `nuke-di`, v2.x). Никаких других DI-контейнеров. |
 | C5 | gRPC-хэндлеры — свободные async-функции с декоратором **`rpc(method_name, package, service)`** по образцу фреймворка Nuke (раздел 5). Декоратор и сервер реализуем сами в `stand_core`. |
@@ -51,7 +51,10 @@
                                                                           └──> Postgres, Redis
                приложение поддержки ──gRPC──> support-service ──gRPC──> order-service
                                                     └──> Postgres
-Автотесты курса ──gRPC──> любой сервис;  ──SQL/Redis──> проверки состояния
+frontend (nginx) ──/mail──> Mailpit (веб-ящик + REST API)
+user-service ──publish──> RabbitMQ (stand.events) ──> notification-service ──SMTP──> Mailpit
+                                                             └──> Postgres (журнал писем)
+Автотесты курса ──gRPC──> любой сервис;  ──SQL/Redis──> проверки состояния;  ──HTTP──> Mailpit API
 ```
 
 | Компонент | Порт (хост) | Протокол | За что отвечает |
@@ -62,8 +65,11 @@
 | catalog-service | 50052 | gRPC | Каталог и поиск; импорт/экспорт товаров продавца; остатки и резервы (внутренний `StockService`). |
 | order-service | 50053 | gRPC | Корзина, оформление заказа, заказы, отслеживание доставки. |
 | support-service | 50054 | gRPC | Чат покупателя с поддержкой по заказу. |
-| postgres | 5432 | SQL | Одна БД `stand`, схема на сервис: `users`, `catalog`, `orders`, `support`. |
+| notification-service | 50055 | gRPC + consumer | Забирает события из RabbitMQ, отправляет письма по SMTP в Mailpit, журнал попыток (`ListNotifications`). |
+| postgres | 5432 | SQL | Одна БД `stand`, схема на сервис: `users`, `catalog`, `orders`, `support`, `notifications`. |
 | redis | 6379 | RESP | Коды подтверждения, сессии, корзины, ключи идемпотентности, pub/sub статусов заказов. |
+| rabbitmq | 5672 | AMQP | Шина событий: topic exchange `stand.events`, очередь писем и dead-letter. Без management-плагина. |
+| mailpit | 1025 / 8025 | SMTP / HTTP | Локальный почтовый сервер: веб-ящик `/mail/` и REST API для тестов. |
 
 Типы вызовов и зачем они в маркетплейсе:
 
@@ -75,7 +81,7 @@
 | server stream | `orders.v1.OrderService/TrackOrder` | Мобильное приложение и BFF показывают статус доставки в реальном времени, без опроса. |
 | bidi | `support.v1.SupportService/Chat` | Чат с поддержкой: покупатель пишет когда хочет, поддержка тоже отвечает когда хочет. Потоки независимы: сервер может прислать сообщение, не дождавшись клиента. |
 
-Стримы работают **без брокеров**: `TrackOrder` получает изменения статуса через Redis pub/sub (так работало бы и при нескольких репликах order-service), чат — внутри процесса support-service.
+Стримы работают **без брокеров** (RabbitMQ — только доставка писем): `TrackOrder` получает изменения статуса через Redis pub/sub (так работало бы и при нескольких репликах order-service), чат — внутри процесса support-service.
 
 ---
 
@@ -96,12 +102,14 @@ grpc-stand/
 │   ├── catalog/v1/catalog.proto      # CatalogService + StockService
 │   ├── catalog/v2/catalog.proto      # CatalogService v2 (раздел 6.3)
 │   ├── orders/v1/orders.proto
-│   └── support/v1/support.proto
+│   ├── support/v1/support.proto
+│   └── notifications/v1/notifications.proto  # журнал писем (ListNotifications)
 ├── packages/
 │   └── core/                   # общая библиотека
 │       └── src/stand_core/
 │           ├── settings.py     # Settings как nuke-di Client (pydantic-settings)
-│           ├── clients/        # Postgres (asyncpg), Redis (redis.asyncio), базовый gRPC-клиент к соседям
+│           ├── clients/        # Postgres (asyncpg), Redis (redis.asyncio), Rabbit (aio-pika), базовый gRPC-клиент к соседям
+│           ├── events.py       # события шины: routing key, тело, разбор с валидацией
 │           ├── grpc/
 │           │   ├── rpc.py          # декоратор rpc, GRPC_HANDLERS, сверка с дескрипторами
 │           │   ├── server.py       # grpc_server(): generic handlers, reflection, health, graceful stop
@@ -115,9 +123,10 @@ grpc-stand/
 │   ├── catalog/  {...}
 │   ├── orders/   {...}
 │   ├── support/  {...}
+│   ├── notifications/  {src/notification_service/{consumer.py,mailer.py,templates.py,handlers/,...}, tests/}
 │   └── gateway/  {src/gateway/{routers/,api.py,main.py}, tests/}
 ├── pb/                         # сгенерированный код (в git — да; ruff/mypy его исключают)
-├── frontend/                   # веб-интерфейс покупателя: Vue 3 + Vite, nginx-прокси /api → gateway
+├── frontend/                   # веб-интерфейс покупателя: Vue 3 + Vite, nginx-прокси /api → gateway, /mail → Mailpit
 │   ├── src/{api,composables,components,pages}/
 │   ├── nginx/default.conf.template
 │   └── Dockerfile              # node:22-alpine (сборка) → nginx:alpine
@@ -323,7 +332,7 @@ Deadline: хэндлер видит оставшееся время через `
 
 | Метод | Auth | Поведение и ошибки |
 |---|---|---|
-| `SignUp` | service | `email`, `password`, `display_name`, `role` (по умолчанию `BUYER`). Создаёт пользователя в статусе `PENDING`. 6-значный код подтверждения — в Redis `confirm:{email}`, TTL 15 мин (письма нет, автотест читает код из Redis). Ошибки: `INVALID_ARGUMENT` + `BadRequest` (невалидный email, пароль < 8 символов, пустое имя), `ALREADY_EXISTS`. |
+| `SignUp` | service | `email`, `password`, `display_name`, `role` (по умолчанию `BUYER`). Создаёт пользователя в статусе `PENDING`. 6-значный код подтверждения — в Redis `confirm:{email}`, TTL 15 мин; код уходит письмом: событие `user.email_confirmation_requested` в RabbitMQ → notification-service → Mailpit (автотест берёт письмо из REST API Mailpit). Недоступный брокер регистрацию не ломает: ошибка публикации логируется, письма нет, код в Redis есть. Ошибки: `INVALID_ARGUMENT` + `BadRequest` (невалидный email, пароль < 8 символов, пустое имя), `ALREADY_EXISTS`. |
 | `ConfirmEmail` | service | `email`, `code`. Код неверный → `INVALID_ARGUMENT`; истёк или не найден → `NOT_FOUND`; уже подтверждён → `FAILED_PRECONDITION`. |
 | `SignIn` | service | Возвращает `access_token` (Redis, TTL — env `SESSION_TTL_S`, по умолчанию 3600) и `expires_at`. Неверная пара → `UNAUTHENTICATED`; email не подтверждён → `FAILED_PRECONDITION`. |
 | `SignOut` | user | Удаляет сессию. |
@@ -413,10 +422,10 @@ BFF на FastAPI с интеграцией nuke-di (`nuke_di.fastapi.setup`). gR
 ## 7. Docker и compose
 
 - **Один Dockerfile** (`python:${PYTHON_VERSION}-slim` + uv, `ARG PYTHON_VERSION=3.12`, задаётся из `.env`) для всех Python-сервисов. Сервис выбирается командой (`python -m catalog_service.main` и т.п.). Многостадийная сборка, без dev-зависимостей в рантайме.
-- Postgres и Redis — `*-alpine`.
+- Postgres, Redis и RabbitMQ — `*-alpine` (RabbitMQ без management-плагина), Mailpit — `axllent/mailpit`.
 - У каждого контейнера:
   - `healthcheck`, у gRPC-сервисов — через стандартный health service: маленький Python-скрипт в образе, без отдельных бинарей;
-  - `mem_limit`, ориентир: Python-сервис 128m, gateway 128m, frontend (nginx) 128m, Postgres 256m, Redis 64m (подбери по факту; бюджет ≤ ~1 ГБ — по фактическому потреблению `make stats`, не по сумме лимитов);
+  - `mem_limit`, ориентир: Python-сервис 128m, gateway 128m, frontend (nginx) 128m, Postgres 256m, Redis 64m, RabbitMQ 256m, Mailpit 64m (подбери по факту; бюджет ≤ ~1 ГБ — по фактическому потреблению `make stats`, не по сумме лимитов);
   - `restart: unless-stopped`.
 - `depends_on` с `condition: service_healthy`. `make up` = `docker compose up -d --wait`.
 - Compose profiles зарезервированы под будущие тяжёлые компоненты: по умолчанию вне базового набора ничего не стартует.
@@ -453,7 +462,7 @@ BFF на FastAPI с интеграцией nuke-di (`nuke_di.fastapi.setup`). gR
   - доменные исключения дают нужные статус и details;
   - `x-request-id` и `x-items-count` выставляются;
 - smoke-сценарий против поднятого стенда (маркер `stand`):
-  1. `SignUp` → код из Redis → `ConfirmEmail` → `SignIn`;
+  1. `SignUp` → письмо с кодом в Mailpit (REST API, поллинг) → `ConfirmEmail` → `SignIn`;
   2. `SearchProducts` → `AddCartItem` → `Checkout` с `idempotency-key`;
   3. `TrackOrder` до `DELIVERED`;
   4. `Chat`: `join` → приветствие оператора → вопрос «где заказ» → ответ бота со статусом;
@@ -466,7 +475,7 @@ BFF на FastAPI с интеграцией nuke-di (`nuke_di.fastapi.setup`). gR
 - [ ] `make install && make gen && make check` — зелёные; mypy strict без `type: ignore` вне `pb/` (исключения обоснованы в `docs/decisions.md`).
 - [ ] `make check && make test` проходят на Python 3.12 и 3.14 (`uv run --python 3.12 ...` / `--python 3.14`); стенд собирается с `PYTHON_VERSION=3.12` и `3.14`.
 - [ ] `make up` на чистой машине поднимает стенд, все контейнеры `healthy`.
-- [ ] `grpcurl -plaintext localhost:<port> list` показывает сервисы через reflection на 50051–50054, включая `catalog.v1` и `catalog.v2`.
+- [ ] `grpcurl -plaintext localhost:<port> list` показывает сервисы через reflection на 50051–50055, включая `catalog.v1` и `catalog.v2`.
 - [ ] Все методы из раздела 6 работают как описано: статус-коды, rich details, `x-request-id`, `x-items-count`, идемпотентность `Checkout`, задержка `ReserveStock`, имитация доставки, независимые сообщения сервера в `Chat`.
 - [ ] Вызов без `x-api-key` → `UNAUTHENTICATED`; метод продавца покупателем → `PERMISSION_DENIED`.
 - [ ] Остановлен catalog-service → `Checkout` отдаёт `UNAVAILABLE`, а не висит. Остановлен order-service → `Chat` продолжает работать, бот сообщает о недоступности.
@@ -477,7 +486,7 @@ BFF на FastAPI с интеграцией nuke-di (`nuke_di.fastapi.setup`). gR
 
 ## 11. Вне рамок
 
-Брокеры сообщений, отправка писем, платёжные провайдеры (оплата имитируется сменой статуса), TLS/mTLS, gRPC-Web/Envoy, метрики и трейсинг, Kubernetes, фронтенд сверх веб-интерфейса покупателя (`frontend/`, docs/decisions.md §27), фреймворк автотестов курса.
+Брокеры сообщений сверх RabbitMQ, отправка писем наружу (письма остаются в Mailpit), письма о статусе заказа, платёжные провайдеры (оплата имитируется сменой статуса), TLS/mTLS, gRPC-Web/Envoy, метрики и трейсинг, Kubernetes, фронтенд сверх веб-интерфейса покупателя (`frontend/`, docs/decisions.md §27), фреймворк автотестов курса.
 
 ## 12. Порядок работы
 

@@ -1,6 +1,6 @@
 # grpc-stand
 
-Учебный стенд для курса «gRPC API Test Automation (Python)»: упрощённый бэкенд маркетплейса из четырёх gRPC-сервисов и REST-шлюза. Поднимается одной командой в docker compose вместе с Postgres и Redis. Все четыре типа вызовов gRPC, rich error model, авторизация по metadata, deadline, идемпотентность, стримы без брокеров.
+Учебный стенд для курса «gRPC API Test Automation (Python)»: упрощённый бэкенд маркетплейса из пяти gRPC-сервисов и REST-шлюза. Поднимается одной командой в docker compose вместе с Postgres, Redis, RabbitMQ и Mailpit. Все четыре типа вызовов gRPC, rich error model, авторизация по metadata, deadline, идемпотентность, стримы; письмо с кодом подтверждения идёт через очередь в локальный почтовый ящик.
 
 - Требования и поведение — [docs/stand/grpc-stand-TZ.md](docs/stand/grpc-stand-TZ.md)
 - Методы, статус-коды, metadata — [docs/api.md](docs/api.md)
@@ -31,7 +31,7 @@ grpcurl -plaintext -H 'x-api-key: stand-secret-key' \
   localhost:50052 catalog.v1.CatalogService/SearchProducts
 ```
 
-`make smoke` берёт адреса только из окружения процесса, `.env` он не читает: по умолчанию хост `localhost` (`STAND_HOST`) и порты из `.env.example`. Если порты в `.env` изменены, экспортируйте его перед запуском — `set -a; . ./.env; set +a; make smoke`. Redis для чтения кода подтверждения — `redis://$STAND_HOST:$REDIS_PORT/0`, переопределяется целиком через `SMOKE_REDIS_URL`.
+`make smoke` берёт адреса только из окружения процесса, `.env` он не читает: по умолчанию хост `localhost` (`STAND_HOST`) и порты из `.env.example`. Если порты в `.env` изменены, экспортируйте его перед запуском — `set -a; . ./.env; set +a; make smoke`. Код подтверждения smoke берёт из письма через REST API Mailpit — `http://$STAND_HOST:$MAILPIT_UI_PORT/mail/api/v1`, переопределяется целиком через `SMOKE_MAILPIT_API_URL`; перед сценарием ящик очищается.
 
 Остановить и удалить данные — `make down`, пересоздать с чистыми данными — `make reset`.
 
@@ -45,10 +45,15 @@ grpcurl -plaintext -H 'x-api-key: stand-secret-key' \
 | catalog-service | 50052 | gRPC | Каталог и поиск (v1 и v2); импорт/экспорт товаров продавца; остатки и резервы (`StockService`) |
 | order-service | 50053 | gRPC | Корзина, оформление заказа, заказы, отслеживание доставки |
 | support-service | 50054 | gRPC | Чат покупателя с поддержкой по заказу |
-| postgres | 5432 | SQL | Одна БД `stand` (`stand`/`stand`), схема на сервис: `users`, `catalog`, `orders`, `support` |
+| notification-service | 50055 | gRPC + consumer | Забирает события из RabbitMQ, шлёт письма по SMTP в Mailpit, журнал попыток (`ListNotifications`) |
+| postgres | 5432 | SQL | Одна БД `stand` (`stand`/`stand`), схема на сервис: `users`, `catalog`, `orders`, `support`, `notifications` |
 | redis | 6379 | RESP | Коды подтверждения (user-service); сессии `session:{token}` читают все gRPC-сервисы (AuthInterceptor); корзины, ключи идемпотентности, pub/sub статусов заказов (order-service) |
+| rabbitmq | 5672 | AMQP | Шина событий: topic exchange `stand.events` (`stand`/`stand`), очередь писем `notifications.email` и dead-letter `notifications.email.dead`; без management-плагина |
+| mailpit | 1025 / 8025 | SMTP / HTTP | Локальный почтовый сервер: наружу не шлёт, письма видны в веб-ящике `/mail/` и в REST API `/mail/api/v1` |
 
 Порты, ключи и задержки задаются в `.env` (см. `.env.example`). Ключ сервиса-клиента `x-api-key` — `stand-secret-key`; продавец-сид — `seller@stand.local` / `seller-password`.
+
+Письма стенда (код подтверждения после регистрации) смотреть в веб-ящике Mailpit: через фронт — `http://localhost:3000/mail/`, напрямую — `http://localhost:${MAILPIT_UI_PORT:-8025}/mail/`. REST API ящика — `/mail/api/v1/...` (например, `GET /mail/api/v1/search?query=to:<email>`), им пользуются smoke и автотесты.
 
 ## Архитектура
 
@@ -59,7 +64,10 @@ grpcurl -plaintext -H 'x-api-key: stand-secret-key' \
                                                                           └──> Postgres, Redis
                приложение поддержки ──gRPC──> support-service ──gRPC──> order-service
                                                     └──> Postgres, Redis
-Автотесты курса ──gRPC──> любой сервис;  ──SQL/Redis──> проверки состояния
+frontend (nginx) ──/mail──> Mailpit (веб-ящик + REST API)
+user-service ──publish──> RabbitMQ (stand.events) ──> notification-service ──SMTP──> Mailpit
+                                                             └──> Postgres (журнал писем)
+Автотесты курса ──gRPC──> любой сервис;  ──SQL/Redis──> проверки состояния;  ──HTTP──> Mailpit API (письма)
 ```
 
 | Тип | Метод | Зачем |
@@ -73,11 +81,13 @@ grpcurl -plaintext -H 'x-api-key: stand-secret-key' \
 ## Структура
 
 ```
-protos/            контракты: common/v1, users/v1, catalog/v1, catalog/v2, orders/v1, support/v1
+protos/            контракты: common/v1, users/v1, catalog/v1, catalog/v2, orders/v1, support/v1,
+                   notifications/v1
 pb/                сгенерированный код (make gen), в git
 packages/core/     общая библиотека stand_core: Settings, логи, ошибки, декоратор rpc,
-                   grpc_server, интерцепторы, клиенты Postgres/Redis и базовый gRPC-клиент
-services/<name>/   gRPC-сервисы: users, catalog, orders, support —
+                   grpc_server, интерцепторы, клиенты Postgres/Redis/RabbitMQ, события (events),
+                   базовый gRPC-клиент
+services/<name>/   gRPC-сервисы: users, catalog, orders, support, notifications —
                    src/<name>_service/{settings,models,repository + schema.sql,convert,auth,
                    handlers/<method>_<in>_<out>.py,main}.py
 services/gateway/  REST-фасад: src/gateway/{routers/<группа>.py,api,params,clients,
@@ -164,24 +174,29 @@ class Postgres(Client):
 
 | Контейнер | Факт | `mem_limit` |
 |---|---|---|
-| users | ~56 МБ | 128m |
-| gateway | ~50 МБ | 128m |
-| catalog | ~40 МБ | 128m |
-| orders | ~40 МБ | 128m |
-| support | ~40 МБ | 128m |
-| postgres | ~75 МБ | 256m |
-| redis | ~19 МБ | 64m |
+| users | ~58 МБ | 128m |
+| gateway | ~53 МБ | 128m |
+| notifications | ~49 МБ | 128m |
+| catalog | ~42 МБ | 128m |
+| orders | ~42 МБ | 128m |
+| support | ~42 МБ | 128m |
+| postgres | ~69 МБ | 256m |
+| rabbitmq | ~96 МБ | 256m |
+| mailpit | ~23 МБ | 64m |
+| redis | ~20 МБ | 64m |
 | frontend | ~8 МБ | 128m |
-| **Итого** | **~330 МБ** | **1088 МБ** |
+| **Итого** | **~500 МБ** | **1536 МБ** |
+
+Бюджет C3 (~1 ГБ в покое) меряется фактом `docker stats`, а не суммой `mem_limit`.
 
 ## Фронтенд
 
 Веб-интерфейс покупателя в `frontend/`: Vue 3, TypeScript, Vite, Vue Router, без UI-библиотеки. Вход, регистрация и подтверждение email, каталог с поиском, фильтрами и пагинацией, карточка товара, корзина, оформление заказа, список заказов и страница заказа с прогрессом доставки.
 
 - Адрес — `http://localhost:3000`, порт на хосте — `FRONTEND_PORT`. Сервис `frontend` поднимается вместе со стендом (`make up`).
-- Прокси: браузер ходит только на origin фронта. nginx отдаёт SPA (глубокие ссылки вроде `/orders/<id>` получают `index.html`) и проксирует `/api/*` на `${GATEWAY_URL}/*` со срезанным префиксом (`/api/products` → `http://gateway:8080/products`), поэтому CORS не нужен. Адрес gateway резолвится на каждый запрос: фронт стартует и остаётся `healthy` при остановленном gateway, а `/api` в это время отвечает 502/504, и UI показывает «сервис недоступен». Healthcheck — собственный `/healthz` nginx.
+- Прокси: браузер ходит только на origin фронта. nginx отдаёт SPA (глубокие ссылки вроде `/orders/<id>` получают `index.html`) и проксирует `/api/*` на `${GATEWAY_URL}/*` со срезанным префиксом (`/api/products` → `http://gateway:8080/products`), поэтому CORS не нужен. `/mail/*` проксируется на `${MAILPIT_URL}/mail/*` без срезания префикса (у Mailpit `MP_WEBROOT=/mail`), включая WebSocket живых обновлений ящика. Адрес gateway резолвится на каждый запрос: фронт стартует и остаётся `healthy` при остановленном gateway, а `/api` в это время отвечает 502/504, и UI показывает «сервис недоступен». Healthcheck — собственный `/healthz` nginx.
 - Оформление — один файл `frontend/src/style.css`: CSS-переменные (цвета, радиусы, тени, фокус-кольцо) и блоки под шапку, формы, карточки каталога, таблицы, шаги доставки и состояния. Светлая и тёмная темы — через `prefers-color-scheme`, анимации выключаются при `prefers-reduced-motion`. Шрифты системные: стенд работает офлайн, внешних CDN нет. Классы в разметке — семантические (`.product-item`, `.order-progress`, `.badge-<status>`), utility-классов и UI-библиотеки нет.
-- Вход: сид-продавец `seller@stand.local` / `seller-password` (он может пользоваться корзиной и оформлять заказы). Новый пользователь после регистрации вводит код подтверждения, который лежит в Redis: `docker compose exec redis redis-cli get confirm:<email>`. Экран подтверждения показывает эту команду с подставленным email.
+- Вход: сид-продавец `seller@stand.local` / `seller-password` (он может пользоваться корзиной и оформлять заказы). Новый пользователь после регистрации получает письмо с кодом подтверждения: экран подтверждения ссылается на ящик стенда `/mail/` (открывается в новой вкладке).
 - Для `make up` Node не нужен — образ фронта собирается в Docker. Для разработки и проверок с хоста (`make front-*`, `npm run dev`) нужен Node.js 22 с npm, как в образе `node:22-alpine`.
 - Разработка с хоста: `npm ci --prefix frontend` (или `make front-install`), затем `cd frontend && npm run dev`. Vite dev-proxy отправляет `/api/*` на `http://localhost:${GATEWAY_PORT:-8080}` со срезанным префиксом, как nginx, поэтому стенд (хотя бы gateway и его соседи) должен быть поднят.
 - Проверки: `make front-lint` (ESLint + vue-tsc) и `make front-test` (Vitest). В `make check` / `make test` они не входят.

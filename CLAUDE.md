@@ -17,10 +17,11 @@
 
 ## Устройство
 
-- uv workspace: `pb/` (`stand-protos`), `packages/core` (модуль `stand_core`), `services/{users,catalog,orders,support,gateway}`. Модули сервисов — `user_service`, `catalog_service`, `order_service`, `support_service`, `gateway`.
+- uv workspace: `pb/` (`stand-protos`), `packages/core` (модуль `stand_core`), `services/{users,catalog,orders,support,notifications,gateway}`. Модули сервисов — `user_service`, `catalog_service`, `order_service`, `support_service`, `notification_service`, `gateway`.
 - Импорт сгенерированного кода: `from catalog.v1 import catalog_pb2`.
 - Каждый gRPC-сервис: `settings.py`, `models.py` (доменные модели, не proto), `repository.py` + `schema.sql`, `convert.py` (домен ↔ proto), `auth.py` (`AUTH_POLICIES`), `handlers/`, `main.py`.
 - gateway — не gRPC-сервис: эндпоинты — `routers/<группа>.py` (группа = ресурс: `health`, `users`, `catalog`, `cart`, `orders`), их список — `routers/__init__.py` (`ROUTERS`), корневой роутер — `api.py`, общие query-параметры — `params.py`, gRPC-клиенты к соседям — `clients.py`, JSON-модели ответов — `schemas.py`, маппинг gRPC → HTTP — `errors.py`, contextvars запроса ставит ASGI-middleware `context.py`; `handlers/`, `auth.py` и репозитория нет (docs/decisions.md §16).
+- События — RabbitMQ: клиент `stand_core.clients.Rabbit` (topic exchange `stand.events`), тела событий и их разбор — `stand_core.events`. users-service публикует `user.email_confirmation_requested` из `SignUp` (без брокера `SignUp` не падает); notification-service — consumer `EmailConsumer` (фоновая задача в `serve`) → `Mailer` (SMTP в Mailpit) → журнал `notifications.sent_emails`; ошибка — `nack(requeue=False)` в dead-letter, без requeue. Код подтверждения по-прежнему в Redis, письмо — только доставка (docs/decisions.md §28).
 - `frontend/` — веб-интерфейс покупателя (Vue 3 + TypeScript + Vite), вне uv workspace; проверки — `make front-lint` / `make front-test` (в `check`/`test` не входят, перед коммитом фронта — тоже зелёные). Код API — `frontend/src/api/`, не `src/lib/` (корневой `.gitignore` игнорирует `lib/`); nginx-прокси `/api` → gateway — `frontend/nginx/default.conf.template` (docs/decisions.md §27).
 - Все зависимости — nuke-di `Client` (настройки, Postgres, Redis, репозитории, клиенты к соседям, интерцепторы), внедряются по type hint. Клиент — `@client_dataclass` + `Client`, зависимости — поля (`_postgres: Postgres`; DI смотрит на тип, не на имя, поэтому поля приватные), своё состояние — `field(default=..., init=False)` и заполняется в `connect()`; `__init__` руками не пишем. Исключение — `Settings` и его подклассы: у них явный `__init__(self) -> None` (pydantic, docs/decisions.md §7).
 
@@ -73,7 +74,7 @@ async def serve(shutdown: Shutdown) -> None:
         await shutdown.wait()
 ```
 
-Фоновые задачи (как доставка в order-service) запускаются внутри `serve` через `BackgroundTasks` nuke-di. gateway — исключение: `uvicorn.run`, а не `@worker` (docs/decisions.md §16).
+Фоновые задачи (как доставка в order-service и consumer писем в notification-service) запускаются внутри `serve` через `BackgroundTasks` nuke-di. gateway — исключение: `uvicorn.run`, а не `@worker` (docs/decisions.md §16).
 
 ## Соглашения
 

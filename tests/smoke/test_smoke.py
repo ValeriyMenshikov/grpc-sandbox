@@ -1,18 +1,19 @@
 """Smoke-сценарий против поднятого стенда (`make up`, затем `make smoke`).
 
 Ходит в сервисы с хоста по портам из .env.example; адреса и ключ можно переопределить
-переменными окружения. Код подтверждения email читается прямо из Redis.
+переменными окружения. Код подтверждения email берётся из письма в Mailpit (его REST API),
+как его получил бы пользователь.
 """
 
 import asyncio
 import os
+import re
 import uuid
 from collections.abc import AsyncIterator, Sequence
 
 import grpc
 import httpx
 import pytest
-import redis.asyncio as redis_asyncio
 from catalog.v1 import catalog_pb2, catalog_pb2_grpc
 from google.protobuf.timestamp_pb2 import Timestamp
 from grpc_reflection.v1alpha.proto_reflection_descriptor_database import (
@@ -31,8 +32,10 @@ CATALOG_ADDR = f"{HOST}:{os.environ.get('CATALOG_PORT', '50052')}"
 ORDERS_ADDR = f"{HOST}:{os.environ.get('ORDERS_PORT', '50053')}"
 SUPPORT_ADDR = f"{HOST}:{os.environ.get('SUPPORT_PORT', '50054')}"
 FRONTEND_URL = f"http://{HOST}:{os.environ.get('FRONTEND_PORT', '3000')}"
-REDIS_URL = os.environ.get(
-    "SMOKE_REDIS_URL", f"redis://{HOST}:{os.environ.get('REDIS_PORT', '6379')}/0"
+# REST API Mailpit: у него MP_WEBROOT=/mail, поэтому API — под /mail/api/v1
+MAILPIT_API_URL = os.environ.get(
+    "SMOKE_MAILPIT_API_URL",
+    f"http://{HOST}:{os.environ.get('MAILPIT_UI_PORT', '8025')}/mail/api/v1",
 )
 SELLER_EMAIL = "seller@stand.local"
 SELLER_PASSWORD = os.environ.get("SEED_SELLER_PASSWORD", "seller-password")
@@ -42,8 +45,40 @@ PASSWORD = "smoke-password-1"
 DELIVERY_TIMEOUT_S = 30.0
 # Приветствие оператора — через SUPPORT_AGENT_DELAY_MS (1,5 с) плюс запас
 CHAT_READ_TIMEOUT_S = 10.0
+# Письмо идёт асинхронно: users → RabbitMQ → notifications → SMTP → Mailpit
+MAIL_TIMEOUT_S = 15.0
+MAIL_POLL_INTERVAL_S = 0.3
+CODE_PATTERN = re.compile(r"\b(\d{6})\b")
 
 Metadata = tuple[tuple[str, str], ...]
+
+
+@pytest.fixture(scope="module", autouse=True)
+def clean_mailbox() -> None:
+    """Ящик Mailpit чистится перед сценарием: smoke гоняется повторно."""
+    reply = httpx.delete(f"{MAILPIT_API_URL}/messages")
+    assert reply.status_code == 200, f"Mailpit недоступен: {reply.status_code} {reply.text}"
+
+
+async def wait_confirmation_code(email: str) -> str:
+    """Ждёт письмо на `email` поллингом и достаёт из тела 6-значный код."""
+    async with httpx.AsyncClient(base_url=MAILPIT_API_URL) as mailpit:
+        deadline = asyncio.get_running_loop().time() + MAIL_TIMEOUT_S
+        while True:
+            found = await mailpit.get("/search", params={"query": f"to:{email}"})
+            found.raise_for_status()
+            messages = found.json()["messages"]
+            if messages:
+                break
+            if asyncio.get_running_loop().time() > deadline:
+                pytest.fail(f"письмо на {email} не пришло за {MAIL_TIMEOUT_S} с")
+            await asyncio.sleep(MAIL_POLL_INTERVAL_S)
+
+        message = await mailpit.get(f"/message/{messages[0]['ID']}")
+        message.raise_for_status()
+    match = CODE_PATTERN.search(message.json()["Text"])
+    assert match, "в письме нет 6-значного кода"
+    return match.group(1)
 
 
 def service_metadata() -> Metadata:
@@ -65,7 +100,7 @@ async def sign_in(email: str, password: str) -> str:
 
 
 async def sign_up_buyer() -> str:
-    """SignUp → код из Redis → ConfirmEmail → SignIn; возвращает токен покупателя."""
+    """SignUp → код из письма в Mailpit → ConfirmEmail → SignIn; возвращает токен покупателя."""
     email = f"smoke-{uuid.uuid4().hex[:12]}@stand.local"
     async with grpc.aio.insecure_channel(USERS_ADDR) as channel:
         users = users_pb2_grpc.UserServiceStub(channel)
@@ -80,15 +115,10 @@ async def sign_up_buyer() -> str:
         )
         assert signed_up.user.status == users_pb2.USER_STATUS_PENDING
 
-        redis = redis_asyncio.from_url(REDIS_URL, decode_responses=True)
-        try:
-            code = await redis.get(f"confirm:{email}")
-        finally:
-            await redis.aclose()
-        assert code, "код подтверждения не найден в Redis"
+        code = await wait_confirmation_code(email)
 
         confirmed = await users.ConfirmEmail(
-            users_pb2.ConfirmEmailRequest(email=email, code=str(code)),
+            users_pb2.ConfirmEmailRequest(email=email, code=code),
             metadata=service_metadata(),
         )
         assert confirmed.user.status == users_pb2.USER_STATUS_ACTIVE
