@@ -251,6 +251,8 @@ services:
     environment:
       # nginx проксирует /api/* на этот адрес, префикс /api срезается
       GATEWAY_URL: ${GATEWAY_URL:-http://gateway:8080}
+      # nginx проксирует /mail/* на этот адрес без срезания префикса (у Mailpit MP_WEBROOT=/mail)
+      MAILPIT_URL: ${MAILPIT_URL:-http://mailpit:8025}
     ports:
       - "${FRONTEND_PORT:-3000}:80"
     depends_on:

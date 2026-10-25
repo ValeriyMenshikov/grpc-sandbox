@@ -1,6 +1,8 @@
 """Контракты из protos/: сгенерированный код импортируется, сервисы и методы на месте."""
 
 import importlib
+import tomllib
+from pathlib import Path
 
 import pytest
 from catalog.v2 import catalog_pb2 as catalog_v2_pb2
@@ -22,6 +24,8 @@ PB2_MODULES = [
     "notifications.v1.notifications_pb2",
     "notifications.v1.notifications_pb2_grpc",
 ]
+
+PB_DIR = Path(__file__).resolve().parents[2] / "pb"
 
 UNARY = (False, False)
 CLIENT_STREAM = (True, False)
@@ -217,3 +221,11 @@ def test_notifications_list_request_and_statuses() -> None:
         "error",
         "created_at",
     }
+
+
+def test_pb_wheel_packages_cover_generated_dirs() -> None:
+    """Локально pb стоит editable и видит всё, а Docker собирает wheel по явному списку."""
+    pyproject = tomllib.loads((PB_DIR / "pyproject.toml").read_text())
+    packages = pyproject["tool"]["hatch"]["build"]["targets"]["wheel"]["packages"]
+    generated = {p.name for p in PB_DIR.iterdir() if p.is_dir() and any(p.rglob("*_pb2.py"))}
+    assert set(packages) == generated

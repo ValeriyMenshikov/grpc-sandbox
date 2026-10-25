@@ -138,13 +138,16 @@ describe('SignUpPage', () => {
 })
 
 describe('ConfirmPage', () => {
-  it('подсказка с redis-cli и email из query', async () => {
+  it('ссылка на ящик стенда и email из query, без redis-cli', async () => {
     const { wrapper } = await mountApp('/confirm?email=new@stand.local')
 
-    expect(wrapper.find('.hint').text()).toBe(
-      'docker compose exec redis redis-cli get confirm:new@stand.local',
-    )
+    const link = wrapper.find('a[href="/mail/"]')
+    expect(link.exists()).toBe(true)
+    expect(link.attributes('target')).toBe('_blank')
+    expect(wrapper.find('.mail-note').text()).toContain('отправлено на new@stand.local')
     expect(wrapper.text()).toContain('15 минут')
+    expect(wrapper.text()).not.toContain('redis-cli')
+    expect(wrapper.text()).not.toContain('Redis')
   })
 
   it('успешный код ведёт на вход', async () => {

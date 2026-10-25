@@ -1,12 +1,12 @@
 # Шаблон для envsubst штатного entrypoint nginx:alpine → /etc/nginx/conf.d/default.conf.
-# Подставляются только GATEWAY_URL и NGINX_LOCAL_RESOLVERS (NGINX_ENVSUBST_FILTER в Dockerfile).
+# Подставляются только GATEWAY_URL, MAILPIT_URL и NGINX_LOCAL_RESOLVERS (NGINX_ENVSUBST_FILTER в Dockerfile).
 server {
     listen 80;
     server_name _;
     root /usr/share/nginx/html;
 
-    # Адрес gateway резолвится на каждый запрос, а не при старте: nginx поднимается и
-    # отдаёт SPA, даже если gateway остановлен или пересоздан с новым IP
+    # Адреса gateway и Mailpit резолвятся на каждый запрос, а не при старте: nginx поднимается
+    # и отдаёт SPA, даже если они остановлены или пересозданы с новым IP
     resolver ${NGINX_LOCAL_RESOLVERS} valid=10s ipv6=off;
 
     # Собственная проверка живости — не зависит от gateway и его соседей
@@ -25,6 +25,20 @@ server {
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto $scheme;
         proxy_set_header X-Forwarded-Host $host;
+    }
+
+    # /mail/* → ${MAILPIT_URL}/mail/*: веб-ящик Mailpit; путь не срезается — Mailpit запущен
+    # с MP_WEBROOT=/mail и сам строит ссылки на ассеты и API от этого префикса
+    location /mail/ {
+        set $mailpit "${MAILPIT_URL}";
+        proxy_pass $mailpit;
+        proxy_set_header Host $host;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        # Живые обновления ящика идут по WebSocket (/mail/api/events)
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection $http_connection;
     }
 
     # Ассеты Vite с хэшем в имени — кэшируются надолго

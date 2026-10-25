@@ -1,7 +1,8 @@
 <script setup lang="ts">
-// Подтверждение email кодом. Письма стенд не отправляет: код лежит в Redis
-// под ключом `confirm:<email>` (TTL 15 минут, `confirm_code_ttl_s` users-service).
-import { computed, ref } from 'vue'
+// Подтверждение email кодом. Код приходит письмом: users-service публикует событие,
+// notification-service отправляет его в Mailpit — ящик стенда проксируется nginx как /mail/.
+// Код живёт 15 минут (`confirm_code_ttl_s` users-service).
+import { ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 
 import { confirmEmail } from '../api/endpoints'
@@ -15,10 +16,6 @@ const email = ref(typeof route.query.email === 'string' ? route.query.email : ''
 const code = ref('')
 const pending = ref(false)
 const error = ref<ApiError | null>(null)
-
-const hint = computed(
-  () => `docker compose exec redis redis-cli get confirm:${email.value || '<email>'}`,
-)
 
 async function submit(): Promise<void> {
   pending.value = true
@@ -37,10 +34,15 @@ async function submit(): Promise<void> {
 <template>
   <section class="auth-page">
     <h1>Подтверждение email</h1>
-    <p class="muted">
-      Письма стенд не отправляет. Код живёт в Redis 15 минут, достать его можно так:
+    <p class="muted mail-note">
+      Письмо с кодом отправлено на <strong>{{ email || 'указанный email' }}</strong>.
+      Код действует 15 минут. Письма стенда лежат в
+      <a
+        href="/mail/"
+        target="_blank"
+        rel="noopener"
+      >почтовом ящике стенда</a>.
     </p>
-    <pre class="hint"><code>{{ hint }}</code></pre>
     <form
       class="form"
       @submit.prevent="submit"

@@ -395,20 +395,8 @@ button[type='submit']:hover:not(:disabled),
   border: 1px solid var(--border);
 }
 
-.hint {
+.mail-note {
   margin: 0 0 1.25rem;
-  padding: 0.7rem 0.85rem;
-  border-radius: var(--radius-sm);
-  background: var(--code-bg);
-  color: var(--code-text);
-  font-size: 0.82rem;
-  overflow-x: auto;
-}
-
-.hint code {
-  padding: 0;
-  background: none;
-  color: inherit;
 }
 
 /* ——— Фильтры ——— */
