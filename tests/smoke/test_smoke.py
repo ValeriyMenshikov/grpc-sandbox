@@ -10,6 +10,7 @@ import uuid
 from collections.abc import AsyncIterator, Sequence
 
 import grpc
+import httpx
 import pytest
 import redis.asyncio as redis_asyncio
 from catalog.v1 import catalog_pb2, catalog_pb2_grpc
@@ -29,6 +30,7 @@ USERS_ADDR = f"{HOST}:{os.environ.get('USERS_PORT', '50051')}"
 CATALOG_ADDR = f"{HOST}:{os.environ.get('CATALOG_PORT', '50052')}"
 ORDERS_ADDR = f"{HOST}:{os.environ.get('ORDERS_PORT', '50053')}"
 SUPPORT_ADDR = f"{HOST}:{os.environ.get('SUPPORT_PORT', '50054')}"
+FRONTEND_URL = f"http://{HOST}:{os.environ.get('FRONTEND_PORT', '3000')}"
 REDIS_URL = os.environ.get(
     "SMOKE_REDIS_URL", f"redis://{HOST}:{os.environ.get('REDIS_PORT', '6379')}/0"
 )
@@ -271,3 +273,27 @@ def test_reflection_lists_catalog_v1_and_v2() -> None:
     with grpc.insecure_channel(CATALOG_ADDR) as channel:
         services = set(ProtoReflectionDescriptorDatabase(channel).get_services())
     assert {"catalog.v1.CatalogService", "catalog.v2.CatalogService"} <= services
+
+
+def test_frontend_serves_spa() -> None:
+    reply = httpx.get(f"{FRONTEND_URL}/")
+    assert reply.status_code == 200
+    assert reply.headers["content-type"].startswith("text/html")
+    assert '<div id="app">' in reply.text
+
+
+def test_frontend_deep_link_serves_index_html() -> None:
+    root = httpx.get(f"{FRONTEND_URL}/")
+    deep = httpx.get(f"{FRONTEND_URL}/orders/x")
+    assert deep.status_code == 200
+    assert deep.text == root.text
+
+
+def test_frontend_proxies_api_to_gateway() -> None:
+    health = httpx.get(f"{FRONTEND_URL}/api/healthz")
+    assert health.status_code == 200
+    assert health.json() == {"status": "ok"}
+
+    products = httpx.get(f"{FRONTEND_URL}/api/products")
+    assert products.status_code == 200
+    assert products.json()["products"]

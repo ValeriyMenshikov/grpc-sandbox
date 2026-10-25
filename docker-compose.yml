@@ -175,5 +175,27 @@ services:
       retries: 10
       start_period: 10s
 
+  frontend:
+    <<: *restart
+    build:
+      context: ./frontend
+    mem_limit: 128m
+    environment:
+      # nginx проксирует /api/* на этот адрес, префикс /api срезается
+      GATEWAY_URL: ${GATEWAY_URL:-http://gateway:8080}
+    ports:
+      - "${FRONTEND_PORT:-3000}:80"
+    depends_on:
+      # Только порядок старта: остановленный позже gateway даёт 502 у /api, SPA отдаётся
+      gateway:
+        condition: service_healthy
+    # Собственный /healthz nginx через busybox wget, не зависит от gateway
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1/healthz"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 10s
+
 volumes:
   pgdata:
