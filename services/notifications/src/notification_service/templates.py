@@ -22,9 +22,9 @@ def confirmation_email(event: EmailConfirmationRequested) -> EmailContent:
         f"Ваш код подтверждения: {event.code}\n"
         "\n"
         f"Код действует {ttl_min} мин. Введите его на странице подтверждения email,\n"
-        "чтобы завершить регистрацию. Если код истёк, зарегистрируйтесь ещё раз —\n"
-        "придёт новое письмо.\n"
+        "чтобы завершить регистрацию.\n"
         "\n"
         "Если вы не регистрировались в Маркетплейс-стенде, просто проигнорируйте это письмо.\n"
     )
-    return EmailContent(subject=f"Код подтверждения: {event.code}", body=body)
+    # Код — только в теле: тема попадает в лог и журнал (`ListNotifications`)
+    return EmailContent(subject="Подтверждение email", body=body)

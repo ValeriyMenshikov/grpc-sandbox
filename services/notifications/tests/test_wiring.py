@@ -19,6 +19,8 @@ import json
 from nuke_di import DI
 from notification_service import main
 
+# Потребитель приходит в serve параметром @worker: без inject его в DI.graph() нет
+DI.inject(main.serve)
 print(json.dumps({
     "clients": [node.name for node in DI.graph().nodes],
     "handlers": sorted(signature.full_method for signature in main.HANDLERS),
@@ -39,6 +41,9 @@ def test_main_builds_client_tree() -> None:
         "Postgres",
         "NotificationSettings",
         "Sessions",
+        "EmailConsumer",
+        "Rabbit",
+        "Mailer",
     } <= set(wiring["clients"])
     assert wiring["handlers"] == ["/notifications.v1.NotificationService/ListNotifications"]
     assert wiring["interceptors"] == [

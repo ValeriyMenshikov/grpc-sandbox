@@ -28,8 +28,8 @@ class Mailer(Client):
         message.set_content(content.body)
         return message
 
-    async def send(self, to_email: str, content: EmailContent) -> EmailMessage:
-        """Отправляет письмо и возвращает его (для журнала и тестов)."""
+    async def send(self, to_email: str, content: EmailContent) -> None:
+        """Отправляет письмо по SMTP; ошибка SMTP — наружу."""
         host = self._settings.smtp_host
         if not host:
             raise RuntimeError("SMTP_HOST is not set")
@@ -40,4 +40,3 @@ class Mailer(Client):
             port=self._settings.smtp_port,
             timeout=self._settings.smtp_timeout_s,
         )
-        return message

@@ -90,6 +90,7 @@ async def test_invalid_fields_are_reported_together(
     ]
     assert repository.users == {}
     assert confirm_codes.codes == {}
+    assert rabbit.published == []
 
 
 @pytest.mark.parametrize(
@@ -135,6 +136,8 @@ async def test_taken_email_already_exists(
 
     assert (info.value.resource_type, info.value.resource_name) == ("user", "taken@example.com")
     assert confirm_codes.codes == {}
+    # Письмо владельцу существующего аккаунта — спам и способ проверить, занят ли email
+    assert rabbit.published == []
 
 
 async def test_publishes_confirmation_event(

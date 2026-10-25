@@ -2,7 +2,6 @@
 
 import uuid
 from datetime import UTC, datetime, timedelta
-from email.message import EmailMessage
 
 from notification_service.mailer import Mailer
 from notification_service.models import Notification, NotificationStatus
@@ -48,8 +47,7 @@ class FakeMailer(Mailer):
         self.sent: list[tuple[str, EmailContent]] = []
         self.error = error
 
-    async def send(self, to_email: str, content: EmailContent) -> EmailMessage:
+    async def send(self, to_email: str, content: EmailContent) -> None:
         if self.error is not None:
             raise self.error
         self.sent.append((to_email, content))
-        return EmailMessage()

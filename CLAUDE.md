@@ -82,5 +82,5 @@ async def serve(shutdown: Shutdown) -> None:
 - Комментарии, докстринги, docs — на русском; сообщения ошибок gRPC — на английском.
 - Новая переменная окружения — в `.env.example`, `docker-compose.yml` (с дефолтом `${VAR:-...}`) и `Settings` сервиса.
 - Порт внутри контейнера (`GRPC_PORT`, у gateway `HTTP_PORT`) задаётся в compose литералом и в `.env.example` не выносится; порт на хосте меняется через `<NAME>_PORT`.
-- Тесты: хэндлеры напрямую с фейками (`tests/fakes.py`) и `Mock`-контекстом; `test_server.py` — сервис in-process со всеми интерцепторами, подмена клиентов через `DI.override`; `test_wiring.py` — дерево клиентов из настоящего `main.py`; тесты против Postgres/Redis из compose пропускаются, если их нет. Rich details в тестах — `stand_core.testing.rich_status`.
+- Тесты: хэндлеры напрямую с фейками (`tests/fakes.py`) и `Mock`-контекстом; `test_server.py` — сервис in-process со всеми интерцепторами, подмена клиентов через `DI.override`; `test_wiring.py` — дерево клиентов из настоящего `main.py`; тесты против Postgres/Redis/RabbitMQ/Mailpit из compose пропускаются, если их нет. Rich details в тестах — `stand_core.testing.rich_status`.
 - Коммиты: `feat: ...` / `fix: ...` / `docs: ...`.

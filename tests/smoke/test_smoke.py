@@ -19,6 +19,7 @@ from google.protobuf.timestamp_pb2 import Timestamp
 from grpc_reflection.v1alpha.proto_reflection_descriptor_database import (
     ProtoReflectionDescriptorDatabase,
 )
+from notifications.v1 import notifications_pb2, notifications_pb2_grpc
 from orders.v1 import orders_pb2, orders_pb2_grpc
 from support.v1 import support_pb2, support_pb2_grpc
 from users.v1 import users_pb2, users_pb2_grpc
@@ -31,6 +32,7 @@ USERS_ADDR = f"{HOST}:{os.environ.get('USERS_PORT', '50051')}"
 CATALOG_ADDR = f"{HOST}:{os.environ.get('CATALOG_PORT', '50052')}"
 ORDERS_ADDR = f"{HOST}:{os.environ.get('ORDERS_PORT', '50053')}"
 SUPPORT_ADDR = f"{HOST}:{os.environ.get('SUPPORT_PORT', '50054')}"
+NOTIFICATIONS_ADDR = f"{HOST}:{os.environ.get('NOTIFICATIONS_PORT', '50055')}"
 FRONTEND_URL = f"http://{HOST}:{os.environ.get('FRONTEND_PORT', '3000')}"
 # REST API Mailpit: у него MP_WEBROOT=/mail, поэтому API — под /mail/api/v1
 MAILPIT_API_URL = os.environ.get(
@@ -81,6 +83,24 @@ async def wait_confirmation_code(email: str) -> str:
     return match.group(1)
 
 
+async def wait_journaled(email: str) -> None:
+    """Письмо записано в журнал notification-service: запись идёт сразу после отправки SMTP."""
+    request = notifications_pb2.ListNotificationsRequest(to_email=email)
+    async with grpc.aio.insecure_channel(NOTIFICATIONS_ADDR) as channel:
+        notifications = notifications_pb2_grpc.NotificationServiceStub(channel)
+        deadline = asyncio.get_running_loop().time() + MAIL_TIMEOUT_S
+        while True:
+            response = await notifications.ListNotifications(request, metadata=service_metadata())
+            if response.notifications:
+                break
+            if asyncio.get_running_loop().time() > deadline:
+                pytest.fail(f"письма на {email} нет в журнале за {MAIL_TIMEOUT_S} с")
+            await asyncio.sleep(MAIL_POLL_INTERVAL_S)
+    assert [n.status for n in response.notifications] == [
+        notifications_pb2.NOTIFICATION_STATUS_SENT
+    ]
+
+
 def service_metadata() -> Metadata:
     return (("x-api-key", API_KEY),)
 
@@ -116,6 +136,7 @@ async def sign_up_buyer() -> str:
         assert signed_up.user.status == users_pb2.USER_STATUS_PENDING
 
         code = await wait_confirmation_code(email)
+        await wait_journaled(email)
 
         confirmed = await users.ConfirmEmail(
             users_pb2.ConfirmEmailRequest(email=email, code=code),
@@ -317,6 +338,17 @@ def test_frontend_deep_link_serves_index_html() -> None:
     deep = httpx.get(f"{FRONTEND_URL}/orders/x")
     assert deep.status_code == 200
     assert deep.text == root.text
+
+
+def test_frontend_proxies_mail_to_mailpit() -> None:
+    info = httpx.get(f"{FRONTEND_URL}/mail/api/v1/info")
+    assert info.status_code == 200
+    assert "Version" in info.json()
+
+    inbox = httpx.get(f"{FRONTEND_URL}/mail/")
+    assert inbox.status_code == 200
+    # Веб-ящик Mailpit, а не index.html SPA (fallback try_files)
+    assert inbox.text != httpx.get(f"{FRONTEND_URL}/").text
 
 
 def test_frontend_proxies_api_to_gateway() -> None:

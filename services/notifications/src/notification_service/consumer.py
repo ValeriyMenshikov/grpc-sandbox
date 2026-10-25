@@ -48,6 +48,8 @@ class EmailConsumer(Client):
         return self._queue
 
     async def connect(self) -> None:
+        # Rabbit.connect() без брокера стартует молча; потребителю брокер обязателен — падаем
+        await self._rabbit.open()
         channel = self._rabbit.channel
         await channel.set_qos(prefetch_count=PREFETCH_COUNT)
         # Мёртвые письма — в fanout-exchange и одну очередь: смотреть руками, переотправлять нечем
@@ -65,7 +67,10 @@ class EmailConsumer(Client):
         self._queue = queue
 
     async def run(self) -> None:
-        """Потребление до отмены задачи; robust-соединение само переподключается к брокеру."""
+        """Потребление до отмены задачи; robust-соединение само переподключается к брокеру.
+
+        Конец итератора без отмены — ошибка: потребитель молча встал бы, а сервис остался healthy.
+        """
         async with self.queue.iterator() as messages:
             async for message in messages:
                 try:
@@ -73,6 +78,7 @@ class EmailConsumer(Client):
                 except Exception as exc:
                     # ack/nack на оборванном канале: брокер сам вернёт сообщение в очередь
                     logger.warning("notifications.ack_failed", error=str(exc))
+        raise RuntimeError("email queue consumption stopped")
 
     async def handle(self, message: AbstractIncomingMessage) -> None:
         """Обработать одно сообщение: ошибки отправки и разбора не бросаются, только ack/nack."""

@@ -7,13 +7,14 @@ import json
 import os
 import uuid
 from typing import Any
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import aio_pika
 import pytest
 from stand_core.clients import Rabbit
 from stand_core.grpc.context import reset_request_id, set_request_id
 from stand_core.settings import Settings
+from structlog.testing import capture_logs
 
 LIVE_URL = os.environ.get("TEST_RABBITMQ_URL", "amqp://stand:stand@localhost:5672/")
 
@@ -49,17 +50,54 @@ def test_exchange_before_connect_raises(settings: Settings) -> None:
         _ = rabbit.channel
 
 
-async def test_publish_before_connect_raises(settings: Settings) -> None:
-    with pytest.raises(RuntimeError, match="Rabbit is not connected"):
+async def test_publish_before_connect_opens_connection(
+    settings: Settings, connection: MagicMock
+) -> None:
+    rabbit = Rabbit(settings)
+
+    await rabbit.publish("any.key", {})
+
+    publish: Any = rabbit.exchange.publish
+    publish.assert_awaited_once()
+
+
+async def test_publish_without_broker_raises(settings: Settings) -> None:
+    connect_robust = AsyncMock(side_effect=ConnectionError("refused"))
+    with (
+        patch.object(aio_pika, "connect_robust", connect_robust),
+        pytest.raises(ConnectionError, match="refused"),
+    ):
         await Rabbit(settings).publish("any.key", {})
 
 
-async def test_connect_requires_url(monkeypatch: pytest.MonkeyPatch) -> None:
+async def test_open_requires_url(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("STAND_API_KEY", "key")
     monkeypatch.delenv("RABBITMQ_URL", raising=False)
 
     with pytest.raises(RuntimeError, match="RABBITMQ_URL"):
-        await Rabbit(Settings()).connect()
+        await Rabbit(Settings()).open()
+
+
+async def test_connect_without_broker_only_logs(settings: Settings) -> None:
+    rabbit = Rabbit(settings)
+    connect_robust = AsyncMock(side_effect=ConnectionError("refused"))
+
+    with patch.object(aio_pika, "connect_robust", connect_robust), capture_logs() as logs:
+        await rabbit.connect()
+
+    assert logs == [{"event": "rabbit.connect_failed", "error": "refused", "log_level": "warning"}]
+    with pytest.raises(RuntimeError, match="not connected"):
+        _ = rabbit.exchange
+
+
+async def test_open_is_idempotent(settings: Settings, connection: MagicMock) -> None:
+    rabbit = Rabbit(settings)
+
+    await rabbit.connect()
+    await rabbit.open()
+
+    connect_robust: Any = aio_pika.connect_robust
+    connect_robust.assert_awaited_once()
 
 
 async def test_connect_declares_durable_topic_exchange(
@@ -72,6 +110,7 @@ async def test_connect_declares_durable_topic_exchange(
     connect_robust.assert_awaited_once_with(
         "amqp://user:pass@broker:5672/", timeout=settings.connect_timeout_seconds
     )
+    connection.channel.assert_awaited_once_with(on_return_raises=True)
     channel = connection.channel.return_value
     channel.declare_exchange.assert_awaited_once_with(
         "stand.events", aio_pika.ExchangeType.TOPIC, durable=True
@@ -88,7 +127,7 @@ async def test_connect_closes_connection_when_declare_fails(
 
     rabbit = Rabbit(settings)
     with pytest.raises(OSError, match="boom"):
-        await rabbit.connect()
+        await rabbit.open()
 
     connection.close.assert_awaited_once()
     with pytest.raises(RuntimeError, match="not connected"):
@@ -152,7 +191,7 @@ async def test_live_publish_reaches_bound_queue(monkeypatch: pytest.MonkeyPatch)
     monkeypatch.setenv("EVENTS_EXCHANGE", f"stand.test.{uuid.uuid4().hex[:12]}")
     rabbit = Rabbit(Settings())
     try:
-        await rabbit.connect()
+        await rabbit.open()
     except (OSError, aio_pika.exceptions.AMQPError) as exc:
         pytest.skip(f"RabbitMQ is not available ({exc}); run make up")
     try:

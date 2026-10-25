@@ -23,7 +23,10 @@ INTERCEPTORS = resolve_interceptors()  # DI.resolve каждого интерц�
 
 @worker
 async def serve(shutdown: Shutdown, tasks: BackgroundTasks, consumer: EmailConsumer) -> None:
-    # Потребитель очереди писем — asyncio-таск рядом с сервером; BackgroundTasks отменит его
+    # Потребитель очереди писем — asyncio-таск рядом с сервером; BackgroundTasks отменит его.
+    # Упал потребитель — останавливаем сервис: compose перезапустит контейнер, а не оставит
+    # healthy-сервис, который письма уже не шлёт
+    tasks.watch(lambda _exc: shutdown.set())
     tasks.spawn(consumer.run(), name="email-consumer")
     async with grpc_server(HANDLERS, INTERCEPTORS):
         await shutdown.wait()

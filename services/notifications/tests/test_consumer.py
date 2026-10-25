@@ -29,6 +29,7 @@ from stand_core.events import (
     email_confirmation_payload,
 )
 from stand_core.settings import Settings
+from structlog.testing import capture_logs
 
 from .fakes import FakeMailer, FakeRepository
 
@@ -106,7 +107,7 @@ async def test_smtp_error_is_nacked_without_requeue_and_recorded(
     [notification] = repository.notifications
     assert notification.status is NotificationStatus.FAILED
     assert notification.to_email == "buyer@example.com"
-    assert notification.subject == "Код подтверждения: 123456"
+    assert notification.subject == "Подтверждение email"
     assert "connection refused" in notification.error
 
 
@@ -152,6 +153,26 @@ async def test_journal_failure_does_not_block_ack(
     incoming.ack.assert_awaited_once_with()
 
 
+@pytest.mark.parametrize(
+    ("body", "mailer"),
+    [
+        (b"not json", FakeMailer()),
+        (event_body(), FakeMailer(aiosmtplib.SMTPConnectError("connection refused"))),
+    ],
+    ids=["invalid-body", "smtp-error"],
+)
+async def test_journal_failure_does_not_block_dead_letter(
+    monkeypatch: pytest.MonkeyPatch, repository: FakeRepository, body: bytes, mailer: FakeMailer
+) -> None:
+    monkeypatch.setattr(repository, "record", AsyncMock(side_effect=OSError("postgres is down")))
+    incoming = message(body)
+
+    await consumer(mailer, repository).handle(incoming)
+
+    incoming.nack.assert_awaited_once_with(requeue=False)
+    incoming.ack.assert_not_awaited()
+
+
 class FakeQueueIterator:
     """`queue.iterator()`: асинхронный контекст и итератор по заранее заданным сообщениям."""
 
@@ -182,7 +203,8 @@ async def test_run_survives_bad_message(repository: FakeRepository) -> None:
     queue.iterator.return_value = FakeQueueIterator([broken, good])
     email_consumer._queue = queue
 
-    await email_consumer.run()
+    with pytest.raises(RuntimeError, match="consumption stopped"):
+        await email_consumer.run()
 
     broken.nack.assert_awaited_once_with(requeue=False)
     good.ack.assert_awaited_once_with()
@@ -194,6 +216,7 @@ async def test_run_survives_bad_message(repository: FakeRepository) -> None:
 
 async def test_connect_declares_queues_with_dead_letter(repository: FakeRepository) -> None:
     rabbit = MagicMock()
+    rabbit.open = AsyncMock()
     channel = rabbit.channel
     channel.set_qos = AsyncMock()
     dead_exchange = MagicMock()
@@ -208,6 +231,7 @@ async def test_connect_declares_queues_with_dead_letter(repository: FakeReposito
         _ = email_consumer.queue
     await email_consumer.connect()
 
+    rabbit.open.assert_awaited_once_with()
     channel.set_qos.assert_awaited_once_with(prefetch_count=PREFETCH_COUNT)
     channel.declare_exchange.assert_awaited_once_with("stand.events.dead", "fanout", durable=True)
     assert channel.declare_queue.await_args_list[0].args == ("notifications.email.dead",)
@@ -242,8 +266,9 @@ async def test_published_event_becomes_email(
     async with httpx.AsyncClient(base_url=MAILPIT_URL, timeout=2) as http:
         try:
             (await http.get("/api/v1/info")).raise_for_status()
-        except httpx.HTTPError as exc:
-            pytest.skip(f"Mailpit is not available ({exc}); run make up")
+        except httpx.TransportError as exc:
+            # Только «не достучались»: ответ с ошибкой (404 при другом MP_WEBROOT) — падение
+            pytest.skip(f"Mailpit is not available ({type(exc).__name__}: {exc}); run make up")
         suffix = uuid.uuid4().hex[:12]
         monkeypatch.setenv("RABBITMQ_URL", RABBITMQ_URL)
         monkeypatch.setenv("SMTP_HOST", SMTP_HOST)
@@ -257,8 +282,8 @@ async def test_published_event_becomes_email(
         settings = NotificationSettings()
         rabbit = Rabbit(Settings())
         try:
-            await rabbit.connect()
-        except (OSError, aio_pika.exceptions.AMQPError, RuntimeError) as exc:
+            await rabbit.open()
+        except (OSError, aio_pika.exceptions.AMQPError) as exc:
             pytest.skip(f"RabbitMQ is not available ({exc}); run make up")
         email_consumer = EmailConsumer(rabbit, Mailer(settings), repository, settings)
         task: asyncio.Task[None] | None = None
@@ -277,7 +302,7 @@ async def test_published_event_becomes_email(
 
             messages = await wait_for_email(http, to_email)
             assert len(messages) == 1
-            assert messages[0]["Subject"] == "Код подтверждения: 654321"
+            assert messages[0]["Subject"] == "Подтверждение email"
             await http.request("DELETE", "/api/v1/messages", json={"IDs": [messages[0]["ID"]]})
 
             # Битое событие — в dead-letter, а не обратно в очередь
@@ -314,6 +339,11 @@ async def test_run_survives_ack_failure(repository: FakeRepository) -> None:
     queue.iterator.return_value = FakeQueueIterator([lost, good])
     email_consumer._queue = queue
 
-    await email_consumer.run()
+    with capture_logs() as logs, pytest.raises(RuntimeError, match="consumption stopped"):
+        await email_consumer.run()
 
+    lost.ack.assert_awaited_once_with()
+    assert {"event": "notifications.ack_failed", "error": "channel closed"}.items() <= next(
+        log for log in logs if log["event"] == "notifications.ack_failed"
+    ).items()
     good.ack.assert_awaited_once_with()

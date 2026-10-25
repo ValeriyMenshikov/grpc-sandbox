@@ -47,7 +47,7 @@ def smtp_send(monkeypatch: pytest.MonkeyPatch) -> AsyncMock:
 def test_confirmation_email_has_code_and_ttl_in_minutes() -> None:
     content = confirmation_email(EVENT)
 
-    assert "123456" in content.subject
+    assert "123456" not in content.subject  # тема — в логе и журнале, код только в теле
     assert "Покупатель" in content.body
     assert "Ваш код подтверждения: 123456" in content.body
     assert "15 мин" in content.body
@@ -65,13 +65,16 @@ def test_confirmation_email_rounds_ttl_up(ttl_s: int, minutes: int) -> None:
 async def test_send_builds_message_and_uses_settings(smtp_send: AsyncMock) -> None:
     mailer = Mailer(NotificationSettings())
 
-    message = await mailer.send(EVENT.email, confirmation_email(EVENT))
+    await mailer.send(EVENT.email, confirmation_email(EVENT))
 
-    smtp_send.assert_awaited_once_with(message, hostname="smtp.test", port=2525, timeout=3.0)
+    smtp_send.assert_awaited_once()
+    [call] = smtp_send.await_args_list
+    message = call.args[0]
+    assert call.kwargs == {"hostname": "smtp.test", "port": 2525, "timeout": 3.0}
     assert isinstance(message, EmailMessage)
     assert message["From"] == "Стенд <noreply@stand.local>"
     assert message["To"] == "buyer@example.com"
-    assert message["Subject"] == "Код подтверждения: 123456"
+    assert message["Subject"] == "Подтверждение email"
     assert message.get_content_type() == "text/plain"
     assert "Ваш код подтверждения: 123456" in message.get_content()
 
@@ -99,8 +102,9 @@ async def test_send_reaches_mailpit(monkeypatch: pytest.MonkeyPatch) -> None:
     async with httpx.AsyncClient(base_url=MAILPIT_URL, timeout=2) as http:
         try:
             (await http.get("/api/v1/info")).raise_for_status()
-        except httpx.HTTPError as exc:
-            pytest.skip(f"Mailpit is not available ({exc}); run make up")
+        except httpx.TransportError as exc:
+            # Только «не достучались»: ответ с ошибкой (404 при другом MP_WEBROOT) — падение
+            pytest.skip(f"Mailpit is not available ({type(exc).__name__}: {exc}); run make up")
         monkeypatch.setenv("SMTP_HOST", SMTP_HOST)
         monkeypatch.setenv("SMTP_PORT", str(SMTP_PORT))
         # Уникальный адрес: ящик общий со стендом и smoke, чистить его тест не должен
@@ -117,7 +121,7 @@ async def test_send_reaches_mailpit(monkeypatch: pytest.MonkeyPatch) -> None:
                 break
             await asyncio.sleep(0.1)
         assert len(messages) == 1
-        assert messages[0]["Subject"] == "Код подтверждения: 123456"
+        assert messages[0]["Subject"] == "Подтверждение email"
         full = (await http.get(f"/api/v1/message/{messages[0]['ID']}")).json()
         assert "Ваш код подтверждения: 123456" in full["Text"]
         await http.request("DELETE", "/api/v1/messages", json={"IDs": [messages[0]["ID"]]})
