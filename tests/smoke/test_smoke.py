@@ -47,7 +47,7 @@ PASSWORD = "smoke-password-1"
 DELIVERY_TIMEOUT_S = 30.0
 # Приветствие оператора — через SUPPORT_AGENT_DELAY_MS (1,5 с) плюс запас
 CHAT_READ_TIMEOUT_S = 10.0
-# Письмо идёт асинхронно: users → RabbitMQ → notifications → SMTP → Mailpit
+# Письмо и проекция саппорта идут асинхронно: издатель → RabbitMQ → потребитель
 MAIL_TIMEOUT_S = 15.0
 MAIL_POLL_INTERVAL_S = 0.3
 CODE_PATTERN = re.compile(r"\b(\d{6})\b")
@@ -83,22 +83,43 @@ async def wait_confirmation_code(email: str) -> str:
     return match.group(1)
 
 
-async def wait_journaled(email: str) -> None:
-    """Письмо записано в журнал notification-service: запись идёт сразу после отправки SMTP."""
+async def wait_journaled(email: str, subject: str) -> None:
+    """Письмо с темой `subject` записано в журнал notification-service со статусом SENT.
+
+    Запись идёт сразу после отправки SMTP. Писем у покупателя несколько (код подтверждения,
+    доставка заказа), поэтому ищем по теме, а не ждём ровно одну строку.
+    """
     request = notifications_pb2.ListNotificationsRequest(to_email=email)
     async with grpc.aio.insecure_channel(NOTIFICATIONS_ADDR) as channel:
         notifications = notifications_pb2_grpc.NotificationServiceStub(channel)
         deadline = asyncio.get_running_loop().time() + MAIL_TIMEOUT_S
         while True:
             response = await notifications.ListNotifications(request, metadata=service_metadata())
-            if response.notifications:
+            matching = [n for n in response.notifications if n.subject == subject]
+            if matching:
                 break
             if asyncio.get_running_loop().time() > deadline:
-                pytest.fail(f"письма на {email} нет в журнале за {MAIL_TIMEOUT_S} с")
+                pytest.fail(f"письма «{subject}» на {email} нет в журнале за {MAIL_TIMEOUT_S} с")
             await asyncio.sleep(MAIL_POLL_INTERVAL_S)
-    assert [n.status for n in response.notifications] == [
-        notifications_pb2.NOTIFICATION_STATUS_SENT
-    ]
+    assert [n.status for n in matching] == [notifications_pb2.NOTIFICATION_STATUS_SENT]
+
+
+async def wait_timeline(
+    order_id: str, expected: Sequence[support_pb2.OrderStatus.ValueType]
+) -> None:
+    """Проекция support-service набрала `expected`: события доходят до неё асинхронно."""
+    request = support_pb2.GetOrderTimelineRequest(order_id=order_id)
+    async with grpc.aio.insecure_channel(SUPPORT_ADDR) as channel:
+        support = support_pb2_grpc.SupportServiceStub(channel)
+        deadline = asyncio.get_running_loop().time() + MAIL_TIMEOUT_S
+        while True:
+            response = await support.GetOrderTimeline(request, metadata=service_metadata())
+            statuses = [event.status for event in response.events]
+            if statuses == list(expected):
+                return
+            if asyncio.get_running_loop().time() > deadline:
+                pytest.fail(f"проекция заказа {order_id}: {statuses}, ждали {list(expected)}")
+            await asyncio.sleep(MAIL_POLL_INTERVAL_S)
 
 
 def service_metadata() -> Metadata:
@@ -119,8 +140,8 @@ async def sign_in(email: str, password: str) -> str:
     return response.access_token
 
 
-async def sign_up_buyer() -> str:
-    """SignUp → код из письма в Mailpit → ConfirmEmail → SignIn; возвращает токен покупателя."""
+async def sign_up_buyer() -> tuple[str, str]:
+    """SignUp → код из письма в Mailpit → ConfirmEmail → SignIn; возвращает email и токен."""
     email = f"smoke-{uuid.uuid4().hex[:12]}@stand.local"
     async with grpc.aio.insecure_channel(USERS_ADDR) as channel:
         users = users_pb2_grpc.UserServiceStub(channel)
@@ -136,14 +157,14 @@ async def sign_up_buyer() -> str:
         assert signed_up.user.status == users_pb2.USER_STATUS_PENDING
 
         code = await wait_confirmation_code(email)
-        await wait_journaled(email)
+        await wait_journaled(email, "Подтверждение email")
 
         confirmed = await users.ConfirmEmail(
             users_pb2.ConfirmEmailRequest(email=email, code=code),
             metadata=service_metadata(),
         )
         assert confirmed.user.status == users_pb2.USER_STATUS_ACTIVE
-    return await sign_in(email, PASSWORD)
+    return email, await sign_in(email, PASSWORD)
 
 
 # Async-стабы (`...AsyncStub`) есть только в .pyi, поэтому аннотации с ними — строкой
@@ -213,10 +234,8 @@ async def chat_about_order(token: str, order_id: str) -> None:
         call.cancel()
 
 
-async def test_buyer_flow() -> None:
-    """Покупатель: регистрация, поиск, корзина, идемпотентный Checkout, доставка, чат."""
-    token = await sign_up_buyer()
-
+async def find_book(token: str) -> catalog_pb2.Product:
+    """Книга с наибольшим остатком: smoke гоняется повторно и не должен выкупить склад."""
     async with grpc.aio.insecure_channel(CATALOG_ADDR) as channel:
         catalog = catalog_pb2_grpc.CatalogServiceStub(channel)
         found = await catalog.SearchProducts(
@@ -224,30 +243,89 @@ async def test_buyer_flow() -> None:
         )
     in_stock = [product for product in found.products if product.stock > 0]
     assert in_stock, "в каталоге нет книг в наличии"
-    product = max(in_stock, key=lambda item: item.stock)
+    return max(in_stock, key=lambda item: item.stock)
+
+
+async def place_order(orders: "orders_pb2_grpc.OrderServiceAsyncStub", token: str) -> str:
+    """Книга в корзину → идемпотентный Checkout (повтор с тем же ключом); возвращает id заказа."""
+    product = await find_book(token)
+    added = await orders.AddCartItem(
+        orders_pb2.AddCartItemRequest(product_id=product.product_id, quantity=1),
+        metadata=user_metadata(token),
+    )
+    assert [item.product_id for item in added.cart.items] == [product.product_id]
+
+    key = ("idempotency-key", uuid.uuid4().hex)
+    first = await orders.Checkout(orders_pb2.CheckoutRequest(), metadata=user_metadata(token, key))
+    repeated = await orders.Checkout(
+        orders_pb2.CheckoutRequest(), metadata=user_metadata(token, key)
+    )
+    order_id = first.order.order_id
+    assert order_id
+    assert repeated.order.order_id == order_id
+    return order_id
+
+
+async def test_buyer_flow() -> None:
+    """Покупатель: регистрация, поиск, корзина, идемпотентный Checkout, доставка, чат."""
+    _, token = await sign_up_buyer()
 
     async with grpc.aio.insecure_channel(ORDERS_ADDR) as channel:
         orders = orders_pb2_grpc.OrderServiceStub(channel)
-        added = await orders.AddCartItem(
-            orders_pb2.AddCartItemRequest(product_id=product.product_id, quantity=1),
-            metadata=user_metadata(token),
-        )
-        assert [item.product_id for item in added.cart.items] == [product.product_id]
-
-        key = ("idempotency-key", uuid.uuid4().hex)
-        first = await orders.Checkout(
-            orders_pb2.CheckoutRequest(), metadata=user_metadata(token, key)
-        )
-        repeated = await orders.Checkout(
-            orders_pb2.CheckoutRequest(), metadata=user_metadata(token, key)
-        )
-        order_id = first.order.order_id
-        assert order_id
-        assert repeated.order.order_id == order_id
-
+        order_id = await place_order(orders, token)
         await wait_delivered(orders, token, order_id)
 
     await chat_about_order(token, order_id)
+
+
+async def poll_until_delivered(
+    orders: "orders_pb2_grpc.OrderServiceAsyncStub", token: str, order_id: str
+) -> orders_pb2.GetOrderResponse:
+    """Поллинг GetOrder до DELIVERED — так статус видит фронт через gateway."""
+    request = orders_pb2.GetOrderRequest(order_id=order_id)
+    deadline = asyncio.get_running_loop().time() + DELIVERY_TIMEOUT_S
+    while True:
+        response = await orders.GetOrder(request, metadata=user_metadata(token))
+        if response.order.status == orders_pb2.ORDER_STATUS_DELIVERED:
+            return response
+        if asyncio.get_running_loop().time() > deadline:
+            pytest.fail(f"заказ {order_id} не доехал за {DELIVERY_TIMEOUT_S} с")
+        await asyncio.sleep(MAIL_POLL_INTERVAL_S)
+
+
+async def test_order_status_reaches_both_consumers() -> None:
+    """Заказ доехал до DELIVERED: письмо о доставке в журнале, проекция у саппорта заполнена.
+
+    Одно событие order.status_changed — два потребителя со своими очередями (fan-out).
+    """
+    email, token = await sign_up_buyer()
+
+    async with grpc.aio.insecure_channel(ORDERS_ADDR) as channel:
+        orders = orders_pb2_grpc.OrderServiceStub(channel)
+        order_id = await place_order(orders, token)
+        delivered = await poll_until_delivered(orders, token, order_id)
+
+    steps = [
+        orders_pb2.ORDER_STATUS_CREATED,
+        orders_pb2.ORDER_STATUS_PAID,
+        orders_pb2.ORDER_STATUS_ASSEMBLING,
+        orders_pb2.ORDER_STATUS_HANDED_TO_COURIER,
+        orders_pb2.ORDER_STATUS_DELIVERED,
+    ]
+    assert list(delivered.delivery_steps) == steps
+    assert [change.status for change in delivered.history] == steps
+
+    await wait_journaled(email, "Заказ доставлен")
+    await wait_timeline(
+        order_id,
+        [
+            support_pb2.ORDER_STATUS_CREATED,
+            support_pb2.ORDER_STATUS_PAID,
+            support_pb2.ORDER_STATUS_ASSEMBLING,
+            support_pb2.ORDER_STATUS_HANDED_TO_COURIER,
+            support_pb2.ORDER_STATUS_DELIVERED,
+        ],
+    )
 
 
 async def import_rows(
@@ -309,7 +387,7 @@ async def test_without_api_key_is_unauthenticated() -> None:
 
 
 async def test_seller_method_as_buyer_is_permission_denied() -> None:
-    token = await sign_up_buyer()
+    _, token = await sign_up_buyer()
     row = catalog_pb2.ImportRow(
         offer_id="SMOKE-DENIED", name="Нельзя", category="smoke", price_kopecks=100, stock=1
     )

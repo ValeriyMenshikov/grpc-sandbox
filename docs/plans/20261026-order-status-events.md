@@ -596,7 +596,7 @@ git commit -m "feat: таймлайн заказа на фронте, шаги �
 
 Демо-рецепт: `rabbitmqctl list_queues name messages consumers` и `list_bindings`; эксперимент `docker compose stop notifications` → заказ едет, проекция саппорта пополняется, фронт жив, очередь писем копится → `start` → дренится, письма задним числом.
 
-- [ ] **Step 1: Написать падающий smoke**
+- [x] **Step 1: Написать падающий smoke**
 
 ```python
 async def test_order_status_reaches_both_consumers(...) -> None:
@@ -606,20 +606,20 @@ async def test_order_status_reaches_both_consumers(...) -> None:
     # GetOrderTimeline(order_id) содержит все пять статусов
 ```
 
-- [ ] **Step 2: Запустить smoke против поднятого стенда**
+- [x] **Step 2: Запустить smoke против поднятого стенда**
 
 Run: `make up && make smoke`
 Expected: сначала FAIL, если что-то не доехало; разобраться и починить.
 
-- [ ] **Step 3: Починить существующее ожидание smoke**
+- [x] **Step 3: Починить существующее ожидание smoke**
 
 `tests/smoke/test_smoke.py:99` ждёт ровно одну строку журнала на email покупателя — теперь у покупателя появляется второе письмо. Переписать на «есть письмо с нужной темой», а не «ровно одно письмо».
 
-- [ ] **Step 4: Обновить документацию**
+- [x] **Step 4: Обновить документацию**
 
 ТЗ, `api.md`, `decisions.md`, демо-рецепт — по списку выше.
 
-- [ ] **Step 5: Полная проверка и коммит**
+- [x] **Step 5: Полная проверка и коммит**
 
 Run: `make check && make test && make front-lint && make front-test && make smoke`
 

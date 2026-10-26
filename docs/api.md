@@ -138,17 +138,19 @@
 | `AddCartItem` | unary | Прибавляет `quantity` к позиции в Redis `cart:{user_id}`; остаток не проверяет. Возвращает корзину. | пустой `product_id`, `quantity <= 0`, `quantity` или итог позиции больше 10 000 → `INVALID_ARGUMENT`; товара нет в catalog → `NOT_FOUND`; catalog недоступен → `UNAVAILABLE` |
 | `RemoveCartItem` | unary | Удаляет позицию целиком. | позиции нет → `NOT_FOUND` (`ResourceInfo` cart_item); catalog недоступен → `UNAVAILABLE` |
 | `GetCart` | unary | Позиции с актуальными названием, ценой (`unit_price`) и остатком (`available`) из catalog, `total`. Пропавшие из catalog товары в ответ не попадают. | catalog недоступен → `UNAVAILABLE` |
-| `Checkout` | unary | `idempotency-key` → резерв `StockService.ReserveStock` (с пробросом deadline и `x-request-id`) → снимок цен → заказ `ORDER_STATUS_CREATED` → корзина очищается. Повтор с тем же ключом — тот же заказ в текущем статусе. | нет/пустой/длинный `idempotency-key` → `INVALID_ARGUMENT`; пустая корзина → `FAILED_PRECONDITION` (`CART_EMPTY`); нехватка → `FAILED_PRECONDITION` с деталями от catalog как есть; параллельный повтор → `FAILED_PRECONDITION` (`CHECKOUT_IN_PROGRESS`); catalog недоступен или не ответил в срок → `UNAVAILABLE` (`DEPENDENCY_UNAVAILABLE`, dependency=catalog), заказ не создаётся. При любой ошибке ключ освобождается |
-| `GetOrder` | unary | Заказ по `order_id`. | пустой id → `INVALID_ARGUMENT`; чужой или нет → `NOT_FOUND` (неразличимо) |
+| `Checkout` | unary | `idempotency-key` → email покупателя через `UserService.GetMe` с его `authorization` (best-effort, таймаут `USERS_EMAIL_TIMEOUT_S`; не получили — заказ оформляется с пустым email, ошибок не добавляет, docs/decisions.md §31) → резерв `StockService.ReserveStock` (с пробросом deadline и `x-request-id`) → снимок цен → заказ `ORDER_STATUS_CREATED` → корзина очищается. Повтор с тем же ключом — тот же заказ в текущем статусе. | нет/пустой/длинный `idempotency-key` → `INVALID_ARGUMENT`; пустая корзина → `FAILED_PRECONDITION` (`CART_EMPTY`); нехватка → `FAILED_PRECONDITION` с деталями от catalog как есть; параллельный повтор → `FAILED_PRECONDITION` (`CHECKOUT_IN_PROGRESS`); catalog недоступен или не ответил в срок → `UNAVAILABLE` (`DEPENDENCY_UNAVAILABLE`, dependency=catalog), заказ не создаётся. При любой ошибке ключ освобождается |
+| `GetOrder` | unary | Заказ по `order_id`, `history` — смены статуса `{status, changed_at}` (старые первыми; у заказа, оформленного до появления истории, пусто), `delivery_steps` — порядок шагов доставки `CREATED → … → DELIVERED` (без `CANCELLED`). Подписи статусов — дело клиента. | пустой id → `INVALID_ARGUMENT`; чужой или нет → `NOT_FOUND` (неразличимо) |
 | `ListOrders` | unary | Заказы пользователя, новые первыми, фильтр `status` (не задан или `UNSPECIFIED` — все), пагинация. | неизвестный `status`, битый токен → `INVALID_ARGUMENT` |
 | `CancelOrder` | unary | Отмена в статусах `CREATED`, `PAID`, `ASSEMBLING` + `ReleaseStock`. Повторная отмена отменённого — не ошибка (снова снимает резерв). | `HANDED_TO_COURIER`/`DELIVERED` → `FAILED_PRECONDITION` (`ORDER_NOT_CANCELLABLE`); чужой/нет → `NOT_FOUND`; catalog недоступен при снятии резерва → `UNAVAILABLE` |
 | `TrackOrder` | server stream | Первым сообщением — текущий статус, дальше каждое изменение с `changed_at`. Закрывается `OK` после `DELIVERED` или `CANCELLED`, trailing `x-items-count`. Изменения — через Redis pub/sub `orders.status.{order_id}`. | пустой id → `INVALID_ARGUMENT`; чужой/нет → `NOT_FOUND` |
+
+Каждая смена статуса (`Checkout` → `CREATED`, доставка, `CancelOrder` → `CANCELLED`) пишется строкой в `orders.order_status_history` в той же операции и публикуется событием `order.status_changed` (см. «События RabbitMQ»).
 
 Доставка: `CREATED → PAID → ASSEMBLING → HANDED_TO_COURIER → DELIVERED`, шаг `FULFILLMENT_STEP_MS` (2000 мс). Любой заказ доезжает до `DELIVERED` за ~8 с, если его не отменить.
 
 ## support.v1.SupportService (50054)
 
-Все методы — Auth `user`.
+`Chat` и `GetChatHistory` — Auth `user`, `GetOrderTimeline` — Auth `service`.
 
 ### Chat (bidi stream)
 
@@ -184,13 +186,30 @@
 
 История чата по `order_id`, старые первыми, пагинация. Чата нет или он чужой → `NOT_FOUND` (`ResourceInfo` chat). Order-service не вызывается.
 
+### GetOrderTimeline (unary)
+
+Проекция статусов заказа `support.order_events`, которую консьюмер support-service строит из событий `order.status_changed` (очередь `support.order_events`): `events{status, changed_at}`, старые первыми; `changed_at` — когда статус сменил order-service, а не когда событие дошло. Eventual consistency: отдаёт то, что успело дойти; неизвестный заказ — пустой список, а не `NOT_FOUND` (support не знает заказов, которых не видел). Order-service не вызывается. Пустой `order_id` → `INVALID_ARGUMENT`.
+
+Без RabbitMQ support-service стартует и `Chat` работает; консьюмер переподключается в фоне с backoff `ORDER_EVENTS_RECONNECT_DELAY_S` → `ORDER_EVENTS_RECONNECT_MAX_DELAY_S` (docs/decisions.md §33).
+
 ## notifications.v1.NotificationService (50055)
 
-Журнал писем. Сами письма уходят не по gRPC: notification-service потребляет события из RabbitMQ (topic exchange `stand.events`, routing key `user.email_confirmation_requested`) и отправляет их по SMTP в Mailpit. Каждая попытка — запись в журнале со статусом `NOTIFICATION_STATUS_SENT` или `NOTIFICATION_STATUS_FAILED` (тогда в `error` — текст ошибки, а сообщение уходит в dead-letter без повторов).
+Журнал писем. Сами письма уходят не по gRPC: notification-service потребляет события из RabbitMQ (см. «События RabbitMQ»: письмо с кодом на `user.email_confirmation_requested`, письмо «Заказ доставлен» на `order.status_changed` со статусом `DELIVERED`) и отправляет их по SMTP в Mailpit. Каждая попытка — запись в журнале со статусом `NOTIFICATION_STATUS_SENT`, `NOTIFICATION_STATUS_FAILED` (в `error` — текст ошибки, сообщение уходит в dead-letter без повторов) или `NOTIFICATION_STATUS_SKIPPED` (письмо не отправлялось: у `DELIVERED` пустой email покупателя; в `error` — причина, сообщение подтверждено, docs/decisions.md §32). Остальные статусы заказа подтверждаются без письма и без записи.
 
 | Метод | Тип | Auth | Поведение | Ошибки |
 |---|---|---|---|---|
 | `ListNotifications` | unary | service | Попытки отправки `{notification_id, to_email, subject, status, error, created_at}`, новые первыми; фильтр `to_email` (не задан — все адресаты, сравнение без учёта регистра), пагинация. У неразобранного события `to_email` пустой. | отрицательный `page_size`, битый `page_token` → `INVALID_ARGUMENT` |
+
+## События RabbitMQ
+
+Topic exchange `stand.events`, тело — JSON; формат и разбор — `stand_core.events` (издатель и потребитель пользуются одними функциями). Разбор строгий к обязательным полям и терпимый к лишним. Очереди объявляет потребитель, у каждой — свой dead-letter через `stand.events.dead`; битое тело или неизвестный статус → `nack(requeue=False)` в dead-letter.
+
+| Routing key | Издатель | Тело | Очереди (потребитель) |
+|---|---|---|---|
+| `user.email_confirmation_requested` | user-service, `SignUp` | `{email, code, display_name, ttl_s, request_id?}` | `notifications.email` (notification-service: письмо с кодом) |
+| `order.status_changed` | order-service: `Checkout`, доставка, `CancelOrder` | `{order_id, user_id, status, changed_at, email?, request_id?}` | `notifications.order_status` (notification-service: письмо на `DELIVERED`), `support.order_events` (support-service: проекция для `GetOrderTimeline`) |
+
+`order.status_changed`: `status` — имя `OrderStatus` без префикса (`CREATED`, `PAID`, `ASSEMBLING`, `HANDED_TO_COURIER`, `DELIVERED`, `CANCELLED`), `changed_at` — ISO 8601 момента смены статуса, `email` — снимок email покупателя на момент оформления, может быть пустым. Публикация best-effort после записи в Postgres, без outbox: событие может потеряться (docs/decisions.md §34). Доставка at-least-once: проекция support-service идемпотентна по `(order_id, status)`. Fan-out виден в `rabbitmqctl list_bindings` — демо-рецепт в docs/stand/order-events-demo.md.
 
 ## gateway — REST (8080)
 
@@ -209,7 +228,7 @@ BFF для веб-фронта. Сам подставляет `x-api-key`, пр�
 | `DELETE /cart/items/{product_id}` | `OrderService/RemoveCartItem` | |
 | `POST /checkout` | `OrderService/Checkout` | заголовок `Idempotency-Key` → metadata `idempotency-key` |
 | `GET /orders` | `OrderService/ListOrders` | `status=CREATED\|…\|CANCELLED`, `page_size`, `page_token` |
-| `GET /orders/{id}` | `OrderService/GetOrder` | |
+| `GET /orders/{id}` | `OrderService/GetOrder` | заказ + `history: [{status, changed_at}]` и `delivery_steps: ["CREATED", …]` |
 | `GET /healthz` | — | без вызовов соседей |
 
 Маппинг gRPC → HTTP:

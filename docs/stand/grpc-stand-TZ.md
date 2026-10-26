@@ -29,7 +29,7 @@
 | # | Ограничение |
 |---|---|
 | C1 | Только Python, **3.12+**: `requires-python = ">=3.12"`, ruff `target-version = "py312"`, mypy `python_version = "3.12"`. Не использовать возможности новее 3.12. Стенд должен запускаться на 3.12, 3.13 и 3.14. |
-| C2 | Инфраструктура — **только Postgres, Redis, RabbitMQ и Mailpit**. Ничего сверх этого списка: никаких Kafka, ZooKeeper, NATS, Envoy, Prometheus и т.п. RabbitMQ — шина событий (письма), Mailpit — локальный почтовый ящик, наружу почта не уходит (docs/decisions.md §28). |
+| C2 | Инфраструктура — **только Postgres, Redis, RabbitMQ и Mailpit**. Ничего сверх этого списка: никаких Kafka, ZooKeeper, NATS, Envoy, Prometheus и т.п. RabbitMQ — шина доменных событий (запрос письма с кодом, смена статуса заказа), Mailpit — локальный почтовый ящик, наружу почта не уходит (docs/decisions.md §28, §29). |
 | C3 | Весь стенд в покое укладывается примерно в **1 ГБ RAM** (замер `docker stats` после `make up` и прогона smoke-сценария, результат — в README). |
 | C4 | DI — только **[nuke-di](https://github.com/troyan-dy/nuke-di)** (PyPI `nuke-di`, v2.x). Никаких других DI-контейнеров. |
 | C5 | gRPC-хэндлеры — свободные async-функции с декоратором **`rpc(method_name, package, service)`** по образцу фреймворка Nuke (раздел 5). Декоратор и сервер реализуем сами в `stand_core`. |
@@ -52,8 +52,12 @@
                приложение поддержки ──gRPC──> support-service ──gRPC──> order-service
                                                     └──> Postgres
 frontend (nginx) ──/mail──> Mailpit (веб-ящик + REST API)
-user-service ──publish──> RabbitMQ (stand.events) ──> notification-service ──SMTP──> Mailpit
-                                                             └──> Postgres (журнал писем)
+user-service  ──publish user.email_confirmation_requested──┐
+order-service ──publish order.status_changed──────────────┤
+                                                           v
+                RabbitMQ (stand.events) ──┬──> notification-service ──SMTP──> Mailpit
+                                          │          └──> Postgres (журнал писем)
+                                          └──> support-service ──> Postgres (проекция статусов заказа)
 Автотесты курса ──gRPC──> любой сервис;  ──SQL/Redis──> проверки состояния;  ──HTTP──> Mailpit API
 ```
 
@@ -64,11 +68,11 @@ user-service ──publish──> RabbitMQ (stand.events) ──> notification-s
 | user-service | 50051 | gRPC | Регистрация, подтверждение email, вход, профиль. |
 | catalog-service | 50052 | gRPC | Каталог и поиск; импорт/экспорт товаров продавца; остатки и резервы (внутренний `StockService`). |
 | order-service | 50053 | gRPC | Корзина, оформление заказа, заказы, отслеживание доставки. |
-| support-service | 50054 | gRPC | Чат покупателя с поддержкой по заказу. |
-| notification-service | 50055 | gRPC + consumer | Забирает события из RabbitMQ, отправляет письма по SMTP в Mailpit, журнал попыток (`ListNotifications`). |
+| support-service | 50054 | gRPC + consumer | Чат покупателя с поддержкой по заказу; проекция статусов заказа из событий RabbitMQ (`GetOrderTimeline`). |
+| notification-service | 50055 | gRPC + consumer | Забирает события из RabbitMQ (код подтверждения, доставка заказа), отправляет письма по SMTP в Mailpit, журнал попыток (`ListNotifications`). |
 | postgres | 5432 | SQL | Одна БД `stand`, схема на сервис: `users`, `catalog`, `orders`, `support`, `notifications`. |
 | redis | 6379 | RESP | Коды подтверждения, сессии, корзины, ключи идемпотентности, pub/sub статусов заказов. |
-| rabbitmq | 5672 | AMQP | Шина событий: topic exchange `stand.events`, очередь писем и dead-letter. Без management-плагина. |
+| rabbitmq | 5672 | AMQP | Шина событий: topic exchange `stand.events`, у каждого потребителя своя очередь и dead-letter. Без management-плагина. |
 | mailpit | 1025 / 8025 | SMTP / HTTP | Локальный почтовый сервер: веб-ящик `/mail/` и REST API для тестов. |
 
 Типы вызовов и зачем они в маркетплейсе:
@@ -81,7 +85,7 @@ user-service ──publish──> RabbitMQ (stand.events) ──> notification-s
 | server stream | `orders.v1.OrderService/TrackOrder` | Мобильное приложение и BFF показывают статус доставки в реальном времени, без опроса. |
 | bidi | `support.v1.SupportService/Chat` | Чат с поддержкой: покупатель пишет когда хочет, поддержка тоже отвечает когда хочет. Потоки независимы: сервер может прислать сообщение, не дождавшись клиента. |
 
-Стримы работают **без брокеров** (RabbitMQ — только доставка писем): `TrackOrder` получает изменения статуса через Redis pub/sub (так работало бы и при нескольких репликах order-service), чат — внутри процесса support-service.
+Стримы работают **без брокеров**: `TrackOrder` получает изменения статуса через Redis pub/sub (так работало бы и при нескольких репликах order-service), чат — внутри процесса support-service. RabbitMQ — для доменных событий с независимыми подписчиками: `user.email_confirmation_requested` (письмо с кодом) и `order.status_changed` — одно событие, две очереди: письмо о доставке в notification-service и проекция статусов в support-service (fan-out, docs/decisions.md §29). Redis pub/sub — эфемерный канал для живого клиента, RabbitMQ — события, которые переживают остановку потребителя.
 
 ---
 
@@ -377,8 +381,8 @@ v2 содержит только `GetProduct` и `SearchProducts`. Сервер 
 | Метод | Тип | Auth | Поведение |
 |---|---|---|---|
 | `AddCartItem` / `RemoveCartItem` / `GetCart` | unary | user | Корзина в Redis `cart:{user_id}`. `GetCart` подтягивает актуальные цены и остатки из catalog-service. Товар не найден → `NOT_FOUND`. |
-| `Checkout` | unary | user | Оформляет заказ из корзины: `StockService.ReserveStock` с пробросом deadline и `x-request-id` → заказ `CREATED` → корзина очищается. Metadata `idempotency-key` **обязательна** (нет → `INVALID_ARGUMENT`); повтор с тем же ключом возвращает тот же заказ (Redis `idem:{user_id}:{key}`, TTL 24 ч). Пустая корзина → `FAILED_PRECONDITION`. Нет товара → `FAILED_PRECONDITION` с деталями от catalog. Catalog недоступен или не ответил в срок → `UNAVAILABLE`, заказ не создаётся. |
-| `GetOrder` | unary | user | Чужой заказ → `NOT_FOUND` (не раскрываем существование). |
+| `Checkout` | unary | user | Оформляет заказ из корзины: email покупателя через `UserService.GetMe` (best-effort, снимок в заказе для уведомлений; users недоступен — заказ оформляется без email) → `StockService.ReserveStock` с пробросом deadline и `x-request-id` → заказ `CREATED` → корзина очищается. Metadata `idempotency-key` **обязательна** (нет → `INVALID_ARGUMENT`); повтор с тем же ключом возвращает тот же заказ (Redis `idem:{user_id}:{key}`, TTL 24 ч). Пустая корзина → `FAILED_PRECONDITION`. Нет товара → `FAILED_PRECONDITION` с деталями от catalog. Catalog недоступен или не ответил в срок → `UNAVAILABLE`, заказ не создаётся. |
+| `GetOrder` | unary | user | Заказ, история смен статуса с метками времени (`history`) и порядок шагов доставки (`delivery_steps`, без `CANCELLED`). Чужой заказ → `NOT_FOUND` (не раскрываем существование). |
 | `ListOrders` | unary | user | Заказы текущего пользователя, новые первыми, пагинация, фильтр по статусу. |
 | `CancelOrder` | unary | user | Можно до `HANDED_TO_COURIER`, иначе `FAILED_PRECONDITION`. Снимает резерв (`ReleaseStock`). |
 | `TrackOrder` | server stream | user | Первым сообщением — текущий статус (событие до подписки не теряется), дальше — каждое изменение с `changed_at`. Закрывается после `DELIVERED` или `CANCELLED`, trailing metadata `x-items-count`. Изменения приходят через Redis pub/sub `orders.status.{order_id}`. |
@@ -389,7 +393,7 @@ v2 содержит только `GetProduct` и `SearchProducts`. Сервер 
 CREATED → PAID → ASSEMBLING → HANDED_TO_COURIER → DELIVERED
 ```
 
-Шаг — env `FULFILLMENT_STEP_MS`, по умолчанию 2000. Каждая смена статуса пишется в Postgres и публикуется в Redis.
+Шаг — env `FULFILLMENT_STEP_MS`, по умолчанию 2000. Каждая смена статуса (включая `CREATED` из `Checkout` и `CANCELLED` из `CancelOrder`) пишется в Postgres вместе со строкой истории, публикуется в Redis (для `TrackOrder`) и событием `order.status_changed` в RabbitMQ (best-effort: брокер недоступен — статус всё равно сменён).
 
 ### 6.5. support.v1 — `SupportService` (порт 50054)
 
@@ -397,6 +401,7 @@ CREATED → PAID → ASSEMBLING → HANDED_TO_COURIER → DELIVERED
 |---|---|---|---|
 | `Chat` | bidi | user | Чат по заказу. Входящие сообщения (`oneof`): `join{order_id}` — обязательно первым, иначе `FAILED_PRECONDITION`; `message{client_message_id, text}`; `read{message_id}`. Исходящие события (`oneof`): `joined{chat_id, last_messages}`, `ack{client_message_id, message_id, created_at}`, `message{message_id, author: AGENT/BOT, text, created_at}`, `agent_typing`. Подробности ниже. |
 | `GetChatHistory` | unary | user | История чата по `order_id`, пагинация. |
+| `GetOrderTimeline` | unary | service | Проекция статусов заказа из событий `order.status_changed` (`support.order_events`), старые первыми. Eventual consistency: отдаёт то, что успело дойти. В order-service не ходит. |
 
 Поведение `Chat`:
 - Заказ проверяется через `OrdersClient.GetOrder` с пробросом **пользовательского `authorization`** и `x-request-id`. Чужой или несуществующий заказ → стрим завершается `NOT_FOUND`.
@@ -404,6 +409,7 @@ CREATED → PAID → ASSEMBLING → HANDED_TO_COURIER → DELIVERED
 - **Сервер пишет сам, не дожидаясь клиента:** через `SUPPORT_AGENT_DELAY_MS` (по умолчанию 1500) после `join` приходят `agent_typing` и сообщение `AGENT` «Здравствуйте, я оператор поддержки…». Тест не может читать ответы строго «запрос → ответ», и это учебная цель.
 - Бот: если в тексте есть «статус» или «где», бот запрашивает у order-service актуальный статус и отвечает `BOT`-сообщением. Если order-service недоступен, бот отвечает «Не удалось получить статус, попробуйте позже», и **стрим не рвётся**.
 - Через `SUPPORT_IDLE_TIMEOUT_S` (по умолчанию 60) без сообщений клиента сервер завершает стрим со статусом `OK` и trailing metadata `x-close-reason: idle`.
+- RabbitMQ support-service не обязателен: без брокера сервис стартует, `Chat` и `GetChatHistory` работают, консьюмер проекции переподключается в фоне.
 
 ### 6.6. gateway (порт 8080)
 
@@ -466,7 +472,8 @@ BFF на FastAPI с интеграцией nuke-di (`nuke_di.fastapi.setup`). gR
   2. `SearchProducts` → `AddCartItem` → `Checkout` с `idempotency-key`;
   3. `TrackOrder` до `DELIVERED`;
   4. `Chat`: `join` → приветствие оператора → вопрос «где заказ» → ответ бота со статусом;
-  5. продавцом: `ImportProducts` с одной заведомо плохой строкой → отчёт с ошибкой → `ExportProducts` содержит импортированные товары.
+  5. заказ до `DELIVERED` поллингом `GetOrder` → письмо «Заказ доставлен» в `ListNotifications` и все пять статусов в `GetOrderTimeline` (одно событие — оба потребителя);
+  6. продавцом: `ImportProducts` с одной заведомо плохой строкой → отчёт с ошибкой → `ExportProducts` содержит импортированные товары.
 
 ---
 
@@ -479,6 +486,7 @@ BFF на FastAPI с интеграцией nuke-di (`nuke_di.fastapi.setup`). gR
 - [ ] Все методы из раздела 6 работают как описано: статус-коды, rich details, `x-request-id`, `x-items-count`, идемпотентность `Checkout`, задержка `ReserveStock`, имитация доставки, независимые сообщения сервера в `Chat`.
 - [ ] Вызов без `x-api-key` → `UNAUTHENTICATED`; метод продавца покупателем → `PERMISSION_DENIED`.
 - [ ] Остановлен catalog-service → `Checkout` отдаёт `UNAVAILABLE`, а не висит. Остановлен order-service → `Chat` продолжает работать, бот сообщает о недоступности.
+- [ ] `order.status_changed` доходит до обоих потребителей: `rabbitmqctl list_bindings` показывает две очереди на этот routing key; остановлен notification-service → заказ доезжает, проекция саппорта пополняется, очередь писем копится и дренится после старта (docs/stand/order-events-demo.md).
 - [ ] `make test` зелёный, smoke-сценарий проходит против поднятого стенда.
 - [ ] `make stats` — суммарно ≤ ~1 ГБ, цифры в README.
 - [ ] README: запуск за 3 команды, таблица портов, схема из раздела 3, как добавить новый сервис.
@@ -486,7 +494,7 @@ BFF на FastAPI с интеграцией nuke-di (`nuke_di.fastapi.setup`). gR
 
 ## 11. Вне рамок
 
-Брокеры сообщений сверх RabbitMQ, отправка писем наружу (письма остаются в Mailpit), письма о статусе заказа, платёжные провайдеры (оплата имитируется сменой статуса), TLS/mTLS, gRPC-Web/Envoy, метрики и трейсинг, Kubernetes, фронтенд сверх веб-интерфейса покупателя (`frontend/`, docs/decisions.md §27), фреймворк автотестов курса.
+Брокеры сообщений сверх RabbitMQ, отправка писем наружу (письма остаются в Mailpit), платёжные провайдеры (оплата имитируется сменой статуса), TLS/mTLS, gRPC-Web/Envoy, метрики и трейсинг, Kubernetes, фронтенд сверх веб-интерфейса покупателя (`frontend/`, docs/decisions.md §27), фреймворк автотестов курса.
 
 ## 12. Порядок работы
 
