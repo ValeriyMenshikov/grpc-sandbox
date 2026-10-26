@@ -9,8 +9,6 @@ import asyncio
 import json
 import os
 import uuid
-from collections.abc import AsyncIterator
-from types import TracebackType
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock
 
@@ -31,7 +29,7 @@ from stand_core.events import (
 from stand_core.settings import Settings
 from structlog.testing import capture_logs
 
-from .fakes import FakeMailer, FakeRepository
+from .fakes import FakeMailer, FakeQueueIterator, FakeRepository, message
 
 RABBITMQ_URL = os.environ.get("TEST_RABBITMQ_URL", "amqp://stand:stand@localhost:5672/")
 SMTP_HOST = os.environ.get("TEST_SMTP_HOST", "localhost")
@@ -55,17 +53,6 @@ def env(monkeypatch: pytest.MonkeyPatch) -> None:
 @pytest.fixture
 def repository() -> FakeRepository:
     return FakeRepository()
-
-
-def message(body: bytes, correlation_id: str | None = "req-from-header") -> MagicMock:
-    """Входящее сообщение aio-pika: тело, заголовки и ack/nack."""
-    incoming = MagicMock()
-    incoming.body = body
-    incoming.message_id = uuid.uuid4().hex
-    incoming.correlation_id = correlation_id
-    incoming.ack = AsyncMock()
-    incoming.nack = AsyncMock()
-    return incoming
 
 
 def event_body(event: EmailConfirmationRequested = EVENT) -> bytes:
@@ -171,28 +158,6 @@ async def test_journal_failure_does_not_block_dead_letter(
 
     incoming.nack.assert_awaited_once_with(requeue=False)
     incoming.ack.assert_not_awaited()
-
-
-class FakeQueueIterator:
-    """`queue.iterator()`: асинхронный контекст и итератор по заранее заданным сообщениям."""
-
-    def __init__(self, messages: list[MagicMock]) -> None:
-        self.messages = messages
-
-    async def __aenter__(self) -> AsyncIterator[MagicMock]:
-        return self._iterate()
-
-    async def __aexit__(
-        self,
-        exc_type: type[BaseException] | None,
-        exc: BaseException | None,
-        tb: TracebackType | None,
-    ) -> None:
-        pass
-
-    async def _iterate(self) -> AsyncIterator[MagicMock]:
-        for incoming in self.messages:
-            yield incoming
 
 
 async def test_run_survives_bad_message(repository: FakeRepository) -> None:

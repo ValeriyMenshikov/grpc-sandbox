@@ -13,6 +13,7 @@ from stand_core.logging import configure_logging
 import notification_service.handlers  # noqa: F401  — регистрирует хэндлеры
 from notification_service.auth import AUTH_POLICIES
 from notification_service.consumer import EmailConsumer
+from notification_service.order_status_consumer import OrderStatusConsumer
 from notification_service.settings import NotificationSettings
 
 configure_logging(DI.resolve(NotificationSettings).log_level)
@@ -22,11 +23,17 @@ INTERCEPTORS = resolve_interceptors()  # DI.resolve каждого интерц�
 
 
 @worker
-async def serve(shutdown: Shutdown, tasks: BackgroundTasks, consumer: EmailConsumer) -> None:
-    # Потребитель очереди писем — asyncio-таск рядом с сервером; BackgroundTasks отменит его.
-    # Упал потребитель — останавливаем сервис: compose перезапустит контейнер, а не оставит
+async def serve(
+    shutdown: Shutdown,
+    tasks: BackgroundTasks,
+    consumer: EmailConsumer,
+    order_status_consumer: OrderStatusConsumer,
+) -> None:
+    # Потребители очередей — asyncio-таски рядом с сервером; BackgroundTasks отменит их.
+    # Упал любой потребитель — останавливаем сервис: compose перезапустит контейнер, а не оставит
     # healthy-сервис, который письма уже не шлёт
     tasks.watch(lambda _exc: shutdown.set())
     tasks.spawn(consumer.run(), name="email-consumer")
+    tasks.spawn(order_status_consumer.run(), name="order-status-consumer")
     async with grpc_server(HANDLERS, INTERCEPTORS):
         await shutdown.wait()

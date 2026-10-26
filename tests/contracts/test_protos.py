@@ -208,6 +208,7 @@ def test_notifications_list_request_and_statuses() -> None:
         "NOTIFICATION_STATUS_UNSPECIFIED",
         "NOTIFICATION_STATUS_SENT",
         "NOTIFICATION_STATUS_FAILED",
+        "NOTIFICATION_STATUS_SKIPPED",
     ]
     req = pool.FindMessageTypeByName("notifications.v1.ListNotificationsRequest")
     assert req.fields_by_name["to_email"].has_presence

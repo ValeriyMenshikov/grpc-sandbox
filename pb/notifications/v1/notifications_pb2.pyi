@@ -32,6 +32,8 @@ class _NotificationStatusEnumTypeWrapper(_enum_type_wrapper._EnumTypeWrapper[_No
     """SMTP-сервер принял письмо."""
     NOTIFICATION_STATUS_FAILED: _NotificationStatus.ValueType  # 2
     """Отправка не удалась или событие не разобрано; сообщение ушло в dead-letter."""
+    NOTIFICATION_STATUS_SKIPPED: _NotificationStatus.ValueType  # 3
+    """Письмо не отправлялось: у события нет адресата (пустой email в order.status_changed)."""
 
 class NotificationStatus(_NotificationStatus, metaclass=_NotificationStatusEnumTypeWrapper): ...
 
@@ -40,6 +42,8 @@ NOTIFICATION_STATUS_SENT: NotificationStatus.ValueType  # 1
 """SMTP-сервер принял письмо."""
 NOTIFICATION_STATUS_FAILED: NotificationStatus.ValueType  # 2
 """Отправка не удалась или событие не разобрано; сообщение ушло в dead-letter."""
+NOTIFICATION_STATUS_SKIPPED: NotificationStatus.ValueType  # 3
+"""Письмо не отправлялось: у события нет адресата (пустой email в order.status_changed)."""
 Global___NotificationStatus: _TypeAlias = NotificationStatus  # noqa: Y015
 
 @_typing.final
@@ -58,7 +62,9 @@ class Notification(_message.Message):
     subject: _builtins.str
     status: Global___NotificationStatus.ValueType
     error: _builtins.str
-    """Текст ошибки для NOTIFICATION_STATUS_FAILED, иначе пусто."""
+    """Текст ошибки для NOTIFICATION_STATUS_FAILED, причина для NOTIFICATION_STATUS_SKIPPED, иначе
+    пусто.
+    """
     @_builtins.property
     def created_at(self) -> _timestamp_pb2.Timestamp: ...
     def __init__(

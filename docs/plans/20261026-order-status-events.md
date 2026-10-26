@@ -341,7 +341,7 @@ git commit -m "feat: order-service публикует order.status_changed в Ra
 
 Поведение на одно сообщение: статус не `DELIVERED` → `ack` без письма и без записи; `DELIVERED` с пустым `email` → `ack` + строка `SKIPPED` в журнале; `DELIVERED` с адресом → письмо, `SENT`/`FAILED` как у `EmailConsumer`; неразбираемое тело или неизвестный статус → `InvalidEvent`, строка `FAILED`, `nack(requeue=False)`.
 
-- [ ] **Step 1: Написать падающие тесты**
+- [x] **Step 1: Написать падающие тесты**
 
 ```python
 async def test_sends_email_on_delivered(...) -> None:
@@ -370,21 +370,21 @@ async def test_unknown_status_goes_to_dead_letter(...) -> None:
     assert msg.nacked and repository.records[-1].status is NotificationStatus.FAILED
 ```
 
-- [ ] **Step 2: Запустить тесты, убедиться, что падают**
+- [x] **Step 2: Запустить тесты, убедиться, что падают**
 
 Run: `uv run pytest services/notifications -v`
 Expected: FAIL — нет `OrderStatusConsumer`.
 
-- [ ] **Step 3: `make gen` и реализация**
+- [x] **Step 3: `make gen` и реализация**
 
 Run: `make gen` (после правки proto), затем реализовать консьюмера, шаблон, статус и настройку. `main.py`: второй `tasks.spawn(order_status_consumer.run(), name="order-status-consumer")` рядом с существующим; `tasks.watch` остаётся один.
 
-- [ ] **Step 4: Запустить тесты и проверки**
+- [x] **Step 4: Запустить тесты и проверки**
 
 Run: `uv run pytest services/notifications -v && make check`
 Expected: PASS.
 
-- [ ] **Step 5: Коммит**
+- [x] **Step 5: Коммит**
 
 ```bash
 git add protos pb services/notifications docker-compose.yml .env.example

@@ -42,6 +42,7 @@ def test_main_builds_client_tree() -> None:
         "NotificationSettings",
         "Sessions",
         "EmailConsumer",
+        "OrderStatusConsumer",
         "Rabbit",
         "Mailer",
     } <= set(wiring["clients"])

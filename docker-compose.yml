@@ -216,6 +216,9 @@ services:
       EMAIL_QUEUE: ${EMAIL_QUEUE:-notifications.email}
       DEAD_LETTER_EXCHANGE: ${DEAD_LETTER_EXCHANGE:-stand.events.dead}
       DEAD_LETTER_QUEUE: ${DEAD_LETTER_QUEUE:-notifications.email.dead}
+      ORDER_STATUS_QUEUE: ${ORDER_STATUS_QUEUE:-notifications.order_status}
+      ORDER_STATUS_DEAD_LETTER_EXCHANGE: ${ORDER_STATUS_DEAD_LETTER_EXCHANGE:-notifications.order_status.dead}
+      ORDER_STATUS_DEAD_LETTER_QUEUE: ${ORDER_STATUS_DEAD_LETTER_QUEUE:-notifications.order_status.dead}
     ports:
       - "${NOTIFICATIONS_PORT:-50055}:50055"
     depends_on:

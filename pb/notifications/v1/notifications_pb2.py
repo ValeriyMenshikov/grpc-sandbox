@@ -26,21 +26,21 @@ from common.v1 import money_pb2 as common_dot_v1_dot_money__pb2
 from google.protobuf import timestamp_pb2 as google_dot_protobuf_dot_timestamp__pb2
 
 
-DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n$notifications/v1/notifications.proto\x12\x10notifications.v1\x1a\x15\x63ommon/v1/money.proto\x1a\x1fgoogle/protobuf/timestamp.proto\"\xbf\x01\n\x0cNotification\x12\x17\n\x0fnotification_id\x18\x01 \x01(\t\x12\x10\n\x08to_email\x18\x02 \x01(\t\x12\x0f\n\x07subject\x18\x03 \x01(\t\x12\x34\n\x06status\x18\x04 \x01(\x0e\x32$.notifications.v1.NotificationStatus\x12\r\n\x05\x65rror\x18\x05 \x01(\t\x12.\n\ncreated_at\x18\x06 \x01(\x0b\x32\x1a.google.protobuf.Timestamp\"i\n\x18ListNotificationsRequest\x12\x15\n\x08to_email\x18\x01 \x01(\tH\x00\x88\x01\x01\x12)\n\npagination\x18\x02 \x01(\x0b\x32\x15.common.v1.PaginationB\x0b\n\t_to_email\"k\n\x19ListNotificationsResponse\x12\x35\n\rnotifications\x18\x01 \x03(\x0b\x32\x1e.notifications.v1.Notification\x12\x17\n\x0fnext_page_token\x18\x02 \x01(\t*w\n\x12NotificationStatus\x12#\n\x1fNOTIFICATION_STATUS_UNSPECIFIED\x10\x00\x12\x1c\n\x18NOTIFICATION_STATUS_SENT\x10\x01\x12\x1e\n\x1aNOTIFICATION_STATUS_FAILED\x10\x02\x32\x83\x01\n\x13NotificationService\x12l\n\x11ListNotifications\x12*.notifications.v1.ListNotificationsRequest\x1a+.notifications.v1.ListNotificationsResponseb\x06proto3')
+DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n$notifications/v1/notifications.proto\x12\x10notifications.v1\x1a\x15\x63ommon/v1/money.proto\x1a\x1fgoogle/protobuf/timestamp.proto\"\xbf\x01\n\x0cNotification\x12\x17\n\x0fnotification_id\x18\x01 \x01(\t\x12\x10\n\x08to_email\x18\x02 \x01(\t\x12\x0f\n\x07subject\x18\x03 \x01(\t\x12\x34\n\x06status\x18\x04 \x01(\x0e\x32$.notifications.v1.NotificationStatus\x12\r\n\x05\x65rror\x18\x05 \x01(\t\x12.\n\ncreated_at\x18\x06 \x01(\x0b\x32\x1a.google.protobuf.Timestamp\"i\n\x18ListNotificationsRequest\x12\x15\n\x08to_email\x18\x01 \x01(\tH\x00\x88\x01\x01\x12)\n\npagination\x18\x02 \x01(\x0b\x32\x15.common.v1.PaginationB\x0b\n\t_to_email\"k\n\x19ListNotificationsResponse\x12\x35\n\rnotifications\x18\x01 \x03(\x0b\x32\x1e.notifications.v1.Notification\x12\x17\n\x0fnext_page_token\x18\x02 \x01(\t*\x98\x01\n\x12NotificationStatus\x12#\n\x1fNOTIFICATION_STATUS_UNSPECIFIED\x10\x00\x12\x1c\n\x18NOTIFICATION_STATUS_SENT\x10\x01\x12\x1e\n\x1aNOTIFICATION_STATUS_FAILED\x10\x02\x12\x1f\n\x1bNOTIFICATION_STATUS_SKIPPED\x10\x03\x32\x83\x01\n\x13NotificationService\x12l\n\x11ListNotifications\x12*.notifications.v1.ListNotificationsRequest\x1a+.notifications.v1.ListNotificationsResponseb\x06proto3')
 
 _globals = globals()
 _builder.BuildMessageAndEnumDescriptors(DESCRIPTOR, _globals)
 _builder.BuildTopDescriptorsAndMessages(DESCRIPTOR, 'notifications.v1.notifications_pb2', _globals)
 if not _descriptor._USE_C_DESCRIPTORS:
   DESCRIPTOR._loaded_options = None
-  _globals['_NOTIFICATIONSTATUS']._serialized_start=524
-  _globals['_NOTIFICATIONSTATUS']._serialized_end=643
+  _globals['_NOTIFICATIONSTATUS']._serialized_start=525
+  _globals['_NOTIFICATIONSTATUS']._serialized_end=677
   _globals['_NOTIFICATION']._serialized_start=115
   _globals['_NOTIFICATION']._serialized_end=306
   _globals['_LISTNOTIFICATIONSREQUEST']._serialized_start=308
   _globals['_LISTNOTIFICATIONSREQUEST']._serialized_end=413
   _globals['_LISTNOTIFICATIONSRESPONSE']._serialized_start=415
   _globals['_LISTNOTIFICATIONSRESPONSE']._serialized_end=522
-  _globals['_NOTIFICATIONSERVICE']._serialized_start=646
-  _globals['_NOTIFICATIONSERVICE']._serialized_end=777
+  _globals['_NOTIFICATIONSERVICE']._serialized_start=680
+  _globals['_NOTIFICATIONSERVICE']._serialized_end=811
 # @@protoc_insertion_point(module_scope)

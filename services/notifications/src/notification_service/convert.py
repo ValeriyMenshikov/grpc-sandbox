@@ -10,6 +10,7 @@ from notification_service.models import Notification, NotificationStatus
 STATUS_TO_PROTO: dict[NotificationStatus, notifications_pb2.NotificationStatus.ValueType] = {
     NotificationStatus.SENT: notifications_pb2.NOTIFICATION_STATUS_SENT,
     NotificationStatus.FAILED: notifications_pb2.NOTIFICATION_STATUS_FAILED,
+    NotificationStatus.SKIPPED: notifications_pb2.NOTIFICATION_STATUS_SKIPPED,
 }
 
 

@@ -1,6 +1,6 @@
 """Доменный Notification → notifications.v1 и фейковый журнал."""
 
-from notification_service.convert import notification_pb
+from notification_service.convert import STATUS_TO_PROTO, notification_pb
 from notification_service.models import NotificationStatus
 from notifications.v1 import notifications_pb2
 
@@ -38,3 +38,10 @@ async def test_fake_repository_filters_and_pages() -> None:
 
     assert [n.notification_id for n in found] == [third.notification_id, first.notification_id]
     assert [n.notification_id for n in page] == [first.notification_id]
+
+
+def test_every_status_has_proto_value() -> None:
+    assert set(STATUS_TO_PROTO) == set(NotificationStatus)
+    assert STATUS_TO_PROTO[NotificationStatus.SKIPPED] == (
+        notifications_pb2.NOTIFICATION_STATUS_SKIPPED
+    )

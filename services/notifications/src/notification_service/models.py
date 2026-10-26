@@ -10,6 +10,8 @@ class NotificationStatus(StrEnum):
     SENT = "SENT"
     # Отправка не удалась или событие не разобрано; сообщение ушло в dead-letter
     FAILED = "FAILED"
+    # Письмо не нужно отправлять: у события нет адресата (пустой email в order.status_changed)
+    SKIPPED = "SKIPPED"
 
 
 @dataclass(frozen=True)
@@ -21,6 +23,6 @@ class Notification:
     to_email: str
     subject: str
     status: NotificationStatus
-    # Текст ошибки для FAILED, иначе пусто
+    # Текст ошибки для FAILED, причина для SKIPPED, иначе пусто
     error: str
     created_at: datetime

@@ -1,7 +1,10 @@
-"""Журнал писем в памяти и SMTP-заглушка для unit-тестов."""
+"""Журнал писем в памяти, SMTP-заглушка и сообщения RabbitMQ для unit-тестов."""
 
 import uuid
+from collections.abc import AsyncIterator
 from datetime import UTC, datetime, timedelta
+from types import TracebackType
+from unittest.mock import AsyncMock, MagicMock
 
 from notification_service.mailer import Mailer
 from notification_service.models import Notification, NotificationStatus
@@ -51,3 +54,36 @@ class FakeMailer(Mailer):
         if self.error is not None:
             raise self.error
         self.sent.append((to_email, content))
+
+
+def message(body: bytes, correlation_id: str | None = "req-from-header") -> MagicMock:
+    """Входящее сообщение aio-pika: тело, заголовки и ack/nack."""
+    incoming = MagicMock()
+    incoming.body = body
+    incoming.message_id = uuid.uuid4().hex
+    incoming.correlation_id = correlation_id
+    incoming.ack = AsyncMock()
+    incoming.nack = AsyncMock()
+    return incoming
+
+
+class FakeQueueIterator:
+    """`queue.iterator()`: асинхронный контекст и итератор по заранее заданным сообщениям."""
+
+    def __init__(self, messages: list[MagicMock]) -> None:
+        self.messages = messages
+
+    async def __aenter__(self) -> AsyncIterator[MagicMock]:
+        return self._iterate()
+
+    async def __aexit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc: BaseException | None,
+        tb: TracebackType | None,
+    ) -> None:
+        pass
+
+    async def _iterate(self) -> AsyncIterator[MagicMock]:
+        for incoming in self.messages:
+            yield incoming

@@ -3,7 +3,7 @@
 import math
 from dataclasses import dataclass
 
-from stand_core.events import EmailConfirmationRequested
+from stand_core.events import EmailConfirmationRequested, OrderStatusChanged
 
 
 @dataclass(frozen=True)
@@ -28,3 +28,15 @@ def confirmation_email(event: EmailConfirmationRequested) -> EmailContent:
     )
     # Код — только в теле: тема попадает в лог и журнал (`ListNotifications`)
     return EmailContent(subject="Подтверждение email", body=body)
+
+
+def delivered_email(event: OrderStatusChanged) -> EmailContent:
+    """Письмо покупателю, когда заказ перешёл в `DELIVERED`."""
+    body = (
+        "Здравствуйте!\n"
+        "\n"
+        f"Ваш заказ {event.order_id} доставлен.\n"
+        "\n"
+        "Спасибо, что выбрали Маркетплейс-стенд.\n"
+    )
+    return EmailContent(subject="Заказ доставлен", body=body)

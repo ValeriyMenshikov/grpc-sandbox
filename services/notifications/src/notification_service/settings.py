@@ -18,3 +18,8 @@ class NotificationSettings(Settings):
     # Куда уходят сообщения после nack(requeue=False): письмо не отправлено или событие битое
     dead_letter_exchange: str = "stand.events.dead"
     dead_letter_queue: str = "notifications.email.dead"
+    # Очередь событий order.status_changed (письмо о доставке) и её отдельный dead-letter:
+    # dead-letter писем — fanout, общий exchange смешал бы мёртвые события двух очередей
+    order_status_queue: str = "notifications.order_status"
+    order_status_dead_letter_exchange: str = "notifications.order_status.dead"
+    order_status_dead_letter_queue: str = "notifications.order_status.dead"

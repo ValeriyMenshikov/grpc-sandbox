@@ -89,3 +89,40 @@ async def test_list_filters_by_email_case_insensitive(
     found = await repository.list_notifications("buyer@example.COM", 0, 10)
 
     assert [n.notification_id for n in found] == [mine.notification_id]
+
+
+async def test_records_skipped(repository: NotificationRepository) -> None:
+    skipped = await repository.record(
+        "", "Заказ доставлен", NotificationStatus.SKIPPED, "order has no buyer email"
+    )
+
+    [stored] = await repository.list_notifications(None, 0, 10)
+    assert stored == skipped
+    assert stored.status is NotificationStatus.SKIPPED
+
+
+async def test_schema_upgrades_status_check(postgres: Postgres) -> None:
+    # База, созданная до SKIPPED: CHECK внутри CREATE TABLE пропускает только SENT и FAILED
+    await postgres.pool.execute(
+        """
+        CREATE SCHEMA notifications;
+        CREATE TABLE notifications.sent_emails (
+            notification_id uuid PRIMARY KEY,
+            to_email text NOT NULL,
+            subject text NOT NULL,
+            status text NOT NULL CHECK (status IN ('SENT', 'FAILED')),
+            error text NOT NULL DEFAULT '',
+            created_at timestamptz NOT NULL DEFAULT now()
+        );
+        """
+    )
+    repository = NotificationRepository(postgres)
+    await repository.connect()
+
+    skipped = await repository.record("", "s", NotificationStatus.SKIPPED, "no email")
+    assert skipped.status is NotificationStatus.SKIPPED
+    with pytest.raises(asyncpg.CheckViolationError):
+        await postgres.pool.execute(
+            "INSERT INTO notifications.sent_emails (notification_id, to_email, subject, status)"
+            " VALUES (gen_random_uuid(), '', '', 'BOGUS')"
+        )

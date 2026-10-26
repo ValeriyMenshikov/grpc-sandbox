@@ -19,6 +19,8 @@ enum NotificationStatus {
   NOTIFICATION_STATUS_SENT = 1;
   // Отправка не удалась или событие не разобрано; сообщение ушло в dead-letter.
   NOTIFICATION_STATUS_FAILED = 2;
+  // Письмо не отправлялось: у события нет адресата (пустой email в order.status_changed).
+  NOTIFICATION_STATUS_SKIPPED = 3;
 }
 
 message Notification {
@@ -27,7 +29,8 @@ message Notification {
   string to_email = 2;
   string subject = 3;
   NotificationStatus status = 4;
-  // Текст ошибки для NOTIFICATION_STATUS_FAILED, иначе пусто.
+  // Текст ошибки для NOTIFICATION_STATUS_FAILED, причина для NOTIFICATION_STATUS_SKIPPED, иначе
+  // пусто.
   string error = 5;
   google.protobuf.Timestamp created_at = 6;
 }
