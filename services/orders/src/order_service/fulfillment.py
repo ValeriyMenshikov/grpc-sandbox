@@ -46,7 +46,9 @@ class Fulfillment(Client):
         for event in events:
             logger.info("orders.status_changed", order_id=event.order_id, status=event.status.value)
             await self._events.publish_quietly(event.change())
-            await self._domain.publish_quietly(event)
+        # В RabbitMQ — разом и после Redis: при недоступном брокере каждая публикация ждёт
+        # таймаут, и по одной они задержали бы TrackOrder и следующий проход на N таймаутов
+        await asyncio.gather(*(self._domain.publish_quietly(event) for event in events))
         return events
 
     async def run(self) -> None:

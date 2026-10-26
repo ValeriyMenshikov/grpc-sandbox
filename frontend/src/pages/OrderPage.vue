@@ -88,7 +88,7 @@ watch(
         v-if="order.status === 'DELIVERED'"
         class="muted mail-note delivered-note"
       >
-        Мы отправили письмо о доставке. Письма стенда лежат в
+        Письмо о доставке уходит на email, известный при оформлении заказа. Письма стенда лежат в
         <a
           href="/mail/"
           target="_blank"

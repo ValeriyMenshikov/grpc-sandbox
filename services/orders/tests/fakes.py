@@ -60,9 +60,10 @@ class FakeRepository(OrderRepository):
         user_id: str = BUYER_ID,
         status: OrderStatus = OrderStatus.CREATED,
         items: Sequence[OrderItem] = (OrderItem("p-1", "Наушники", 1, 100_00),),
+        email: str = "",
     ) -> Order:
         now = self.tick()
-        order = Order(f"o-{len(self.orders) + 1}", user_id, status, tuple(items), now, now, "")
+        order = Order(f"o-{len(self.orders) + 1}", user_id, status, tuple(items), now, now, email)
         self.orders[order.order_id] = order
         return order
 

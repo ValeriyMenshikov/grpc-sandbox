@@ -202,7 +202,7 @@
 
 ## События RabbitMQ
 
-Topic exchange `stand.events`, тело — JSON; формат и разбор — `stand_core.events` (издатель и потребитель пользуются одними функциями). Разбор строгий к обязательным полям и терпимый к лишним. Очереди объявляет потребитель, у каждой — свой dead-letter через `stand.events.dead`; битое тело или неизвестный статус → `nack(requeue=False)` в dead-letter.
+Topic exchange `stand.events`, тело — JSON; формат и разбор — `stand_core.events` (издатель и потребитель пользуются одними функциями). Разбор строгий к обязательным полям и терпимый к лишним. Очереди объявляет потребитель, у каждой — свой fanout dead-letter exchange и очередь: `notifications.email` → `stand.events.dead` / `notifications.email.dead`, `notifications.order_status` → `notifications.order_status.dead`, `support.order_events` → `support.order_events.dead` (общий fanout смешал бы мёртвые события разных очередей); битое тело или неизвестный статус → `nack(requeue=False)` в dead-letter.
 
 | Routing key | Издатель | Тело | Очереди (потребитель) |
 |---|---|---|---|

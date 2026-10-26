@@ -8,8 +8,9 @@ from unittest.mock import AsyncMock, MagicMock
 import aiosmtplib
 import pytest
 from notification_service.models import NotificationStatus
-from notification_service.order_status_consumer import OrderStatusConsumer
+from notification_service.order_status_consumer import KNOWN_STATUSES, OrderStatusConsumer
 from notification_service.settings import NotificationSettings
+from orders.v1 import orders_pb2
 from stand_core.events import (
     ORDER_STATUS_CHANGED,
     OrderStatusChanged,
@@ -193,3 +194,10 @@ async def test_connect_declares_own_queue_and_dead_letter(repository: FakeReposi
     }
     queue.bind.assert_awaited_once_with(rabbit.exchange, routing_key=ORDER_STATUS_CHANGED)
     assert order_consumer.queue is queue
+
+
+def test_known_statuses_mirror_orders_proto() -> None:
+    """Статус не из KNOWN_STATUSES уходит в dead-letter: копия не отстаёт от orders.v1."""
+    names = {value.name for value in orders_pb2.OrderStatus.DESCRIPTOR.values}
+    expected = {name.removeprefix("ORDER_STATUS_") for name in names - {"ORDER_STATUS_UNSPECIFIED"}}
+    assert expected == KNOWN_STATUSES

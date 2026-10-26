@@ -48,6 +48,7 @@
 Браузер ──HTTP──> frontend (nginx) ──/api──> gateway (BFF) ──gRPC──> user-service ──────────> Postgres, Redis
                                                            ├─gRPC──> catalog-service ─────────> Postgres
                                                            └─gRPC──> order-service ──gRPC──> catalog-service (StockService)
+                                                                          ├─gRPC──> user-service (GetMe: email для снимка)
                                                                           └──> Postgres, Redis
                приложение поддержки ──gRPC──> support-service ──gRPC──> order-service
                                                     └──> Postgres

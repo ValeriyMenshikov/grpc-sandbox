@@ -402,7 +402,7 @@ describe('OrderPage', () => {
     const { wrapper } = await mountApp('/orders/o1')
 
     const note = wrapper.find('.delivered-note')
-    expect(note.text()).toContain('Мы отправили письмо о доставке')
+    expect(note.text()).toContain('Письмо о доставке уходит на email')
     expect(note.find('a').attributes('href')).toBe('/mail/')
   })
 

@@ -149,7 +149,7 @@ async def test_cancel_before_courier_releases_stock(
     rabbit: FakeRabbit,
     status: OrderStatus,
 ) -> None:
-    order = repository.add(status=status)
+    order = repository.add(status=status, email="buyer@example.com")
 
     response = await cancel_order(
         orders_pb2.CancelOrderRequest(order_id=order.order_id),
@@ -173,6 +173,7 @@ async def test_cancel_before_courier_releases_stock(
     assert routing_key == ORDER_STATUS_CHANGED
     assert (event.order_id, event.user_id, event.status) == (order.order_id, BUYER_ID, "CANCELLED")
     assert event.changed_at == published.changed_at
+    assert event.email == "buyer@example.com"
 
 
 @pytest.mark.parametrize("status", [OrderStatus.HANDED_TO_COURIER, OrderStatus.DELIVERED])

@@ -199,6 +199,14 @@ def test_get_order_response_history_and_steps() -> None:
     assert _message_type_name(change.fields_by_name["changed_at"]) == "google.protobuf.Timestamp"
 
 
+def test_support_order_status_mirrors_orders() -> None:
+    """Статус не из enum саппорта проекция отправляет в dead-letter: копии не расходятся."""
+    pool = descriptor_pool.Default()
+    orders = pool.FindEnumTypeByName("orders.v1.OrderStatus")
+    support = pool.FindEnumTypeByName("support.v1.OrderStatus")
+    assert [v.name for v in support.values] == [v.name for v in orders.values]
+
+
 def test_users_roles_and_field_mask() -> None:
     pool = descriptor_pool.Default()
     roles = pool.FindEnumTypeByName("users.v1.UserRole")

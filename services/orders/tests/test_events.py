@@ -82,7 +82,9 @@ async def test_publish_gives_up_on_hanging_broker(
     monkeypatch.setattr(rabbit, "publish", hang)
     monkeypatch.setattr("order_service.domain_events.PUBLISH_TIMEOUT_S", 0.01)
 
-    await DomainEvents(_rabbit=rabbit).publish_quietly(order_status_event())
+    # Без таймаута в publish_quietly тест упадёт здесь, а не просто станет на 10 с дольше
+    async with asyncio.timeout(1):
+        await DomainEvents(_rabbit=rabbit).publish_quietly(order_status_event())
 
 
 def test_encode_decode_round_trip() -> None:

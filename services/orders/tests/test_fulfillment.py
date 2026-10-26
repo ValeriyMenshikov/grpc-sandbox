@@ -71,7 +71,7 @@ async def test_advance_moves_active_orders_one_step_and_publishes(
 async def test_fulfillment_publishes_each_change(
     fulfillment: Fulfillment, repository: FakeRepository, rabbit: FakeRabbit
 ) -> None:
-    order = repository.add(user_id="u-1")
+    order = repository.add(user_id="u-1", email="buyer@example.com")
 
     [change] = await fulfillment.advance()
 
@@ -79,6 +79,30 @@ async def test_fulfillment_publishes_each_change(
     [event] = [parse_order_status_changed(payload) for _, payload in rabbit.published]
     assert (event.order_id, event.user_id, event.status) == (order.order_id, "u-1", "PAID")
     assert event.changed_at == change.changed_at
+    assert event.email == "buyer@example.com"
+
+
+async def test_hanging_broker_costs_one_timeout_per_pass(
+    fulfillment: Fulfillment,
+    repository: FakeRepository,
+    rabbit: FakeRabbit,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Публикации прохода в RabbitMQ идут разом: N заказов ждут один таймаут, а не N."""
+
+    async def hang(routing_key: str, payload: object) -> None:
+        await asyncio.sleep(10)
+
+    monkeypatch.setattr(rabbit, "publish", hang)
+    monkeypatch.setattr("order_service.domain_events.PUBLISH_TIMEOUT_S", 0.2)
+    for _ in range(5):
+        repository.add()
+
+    started = asyncio.get_running_loop().time()
+    changes = await fulfillment.advance()
+
+    assert len(changes) == 5
+    assert asyncio.get_running_loop().time() - started < 0.6
 
 
 async def test_broker_failure_keeps_redis_publication(

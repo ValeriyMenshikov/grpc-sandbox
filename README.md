@@ -1,10 +1,11 @@
 # grpc-stand
 
-Учебный стенд для курса «gRPC API Test Automation (Python)»: упрощённый бэкенд маркетплейса из пяти gRPC-сервисов и REST-шлюза. Поднимается одной командой в docker compose вместе с Postgres, Redis, RabbitMQ и Mailpit. Все четыре типа вызовов gRPC, rich error model, авторизация по metadata, deadline, идемпотентность, стримы; письмо с кодом подтверждения идёт через очередь в локальный почтовый ящик.
+Учебный стенд для курса «gRPC API Test Automation (Python)»: упрощённый бэкенд маркетплейса из пяти gRPC-сервисов и REST-шлюза. Поднимается одной командой в docker compose вместе с Postgres, Redis, RabbitMQ и Mailpit. Все четыре типа вызовов gRPC, rich error model, авторизация по metadata, deadline, идемпотентность, стримы; письмо с кодом подтверждения и письмо о доставке заказа идут через очередь в локальный почтовый ящик, смены статуса заказа расходятся по RabbitMQ нескольким потребителям.
 
 - Требования и поведение — [docs/stand/grpc-stand-TZ.md](docs/stand/grpc-stand-TZ.md)
 - Методы, статус-коды, metadata — [docs/api.md](docs/api.md)
 - Решения, принятые при реализации — [docs/decisions.md](docs/decisions.md)
+- Демо fan-out `order.status_changed` — [docs/stand/order-events-demo.md](docs/stand/order-events-demo.md)
 
 ## Запуск
 
@@ -43,17 +44,17 @@ grpcurl -plaintext -H 'x-api-key: stand-secret-key' \
 | gateway | 8080 | REST (FastAPI) → gRPC | BFF для веб-фронта |
 | user-service | 50051 | gRPC | Регистрация, подтверждение email, вход, профиль |
 | catalog-service | 50052 | gRPC | Каталог и поиск (v1 и v2); импорт/экспорт товаров продавца; остатки и резервы (`StockService`) |
-| order-service | 50053 | gRPC | Корзина, оформление заказа, заказы, отслеживание доставки |
-| support-service | 50054 | gRPC | Чат покупателя с поддержкой по заказу |
-| notification-service | 50055 | gRPC + consumer | Забирает события из RabbitMQ, шлёт письма по SMTP в Mailpit, журнал попыток (`ListNotifications`) |
+| order-service | 50053 | gRPC | Корзина, оформление заказа, заказы, отслеживание доставки; публикует `order.status_changed` в RabbitMQ |
+| support-service | 50054 | gRPC + consumer | Чат покупателя с поддержкой по заказу; проекция статусов заказа из событий RabbitMQ (`GetOrderTimeline`) |
+| notification-service | 50055 | gRPC + consumer | Забирает события из RabbitMQ, шлёт письма по SMTP в Mailpit (код подтверждения, «Заказ доставлен»), журнал попыток (`ListNotifications`) |
 | postgres | 5432 | SQL | Одна БД `stand` (`stand`/`stand`), схема на сервис: `users`, `catalog`, `orders`, `support`, `notifications` |
 | redis | 6379 | RESP | Коды подтверждения (user-service); сессии `session:{token}` читают все gRPC-сервисы (AuthInterceptor); корзины, ключи идемпотентности, pub/sub статусов заказов (order-service) |
-| rabbitmq | 5672 | AMQP | Шина событий: topic exchange `stand.events` (`stand`/`stand`), очередь писем `notifications.email` и dead-letter `notifications.email.dead`; без management-плагина |
+| rabbitmq | 5672 | AMQP | Шина событий: topic exchange `stand.events` (`stand`/`stand`), у каждого потребителя своя очередь и dead-letter: `notifications.email`, `notifications.order_status`, `support.order_events` (+ `.dead`); без management-плагина |
 | mailpit | 1025 / 8025 | SMTP / HTTP | Локальный почтовый сервер: наружу не шлёт, письма видны в веб-ящике `/mail/` и в REST API `/mail/api/v1` |
 
 Порты, ключи и задержки задаются в `.env` (см. `.env.example`). Ключ сервиса-клиента `x-api-key` — `stand-secret-key`; продавец-сид — `seller@stand.local` / `seller-password`.
 
-Письма стенда (код подтверждения после регистрации) смотреть в веб-ящике Mailpit: через фронт — `http://localhost:3000/mail/`, напрямую — `http://localhost:${MAILPIT_UI_PORT:-8025}/mail/`. REST API ящика — `/mail/api/v1/...` (например, `GET /mail/api/v1/search?query=to:<email>`), им пользуются smoke и автотесты.
+Письма стенда (код подтверждения после регистрации, письмо о доставке заказа) смотреть в веб-ящике Mailpit: через фронт — `http://localhost:3000/mail/`, напрямую — `http://localhost:${MAILPIT_UI_PORT:-8025}/mail/`. REST API ящика — `/mail/api/v1/...` (например, `GET /mail/api/v1/search?query=to:<email>`), им пользуются smoke и автотесты.
 
 ## Архитектура
 
@@ -61,12 +62,17 @@ grpcurl -plaintext -H 'x-api-key: stand-secret-key' \
 Браузер ──HTTP──> frontend (nginx) ──/api──> gateway (BFF) ──gRPC──> user-service ──────────> Postgres, Redis
                                                            ├─gRPC──> catalog-service ─────────> Postgres, Redis
                                                            └─gRPC──> order-service ──gRPC──> catalog-service (StockService)
+                                                                          ├─gRPC──> user-service (GetMe: email для снимка)
                                                                           └──> Postgres, Redis
                приложение поддержки ──gRPC──> support-service ──gRPC──> order-service
                                                     └──> Postgres, Redis
 frontend (nginx) ──/mail──> Mailpit (веб-ящик + REST API)
-user-service ──publish──> RabbitMQ (stand.events) ──> notification-service ──SMTP──> Mailpit
-                                                             └──> Postgres (журнал писем)
+user-service  ──publish user.email_confirmation_requested──┐
+order-service ──publish order.status_changed──────────────┤
+                                                           v
+                RabbitMQ (stand.events) ──┬──> notification-service ──SMTP──> Mailpit
+                                          │          └──> Postgres (журнал писем)
+                                          └──> support-service ──> Postgres (проекция статусов заказа)
 Автотесты курса ──gRPC──> любой сервис;  ──SQL/Redis──> проверки состояния;  ──HTTP──> Mailpit API (письма)
 ```
 
@@ -191,7 +197,7 @@ class Postgres(Client):
 
 ## Фронтенд
 
-Веб-интерфейс покупателя в `frontend/`: Vue 3, TypeScript, Vite, Vue Router, без UI-библиотеки. Вход, регистрация и подтверждение email, каталог с поиском, фильтрами и пагинацией, карточка товара, корзина, оформление заказа, список заказов и страница заказа с прогрессом доставки.
+Веб-интерфейс покупателя в `frontend/`: Vue 3, TypeScript, Vite, Vue Router, без UI-библиотеки. Вход, регистрация и подтверждение email, каталог с поиском, фильтрами и пагинацией, карточка товара, корзина, оформление заказа, список заказов и страница заказа с прогрессом доставки и временем смен статуса (порядок шагов и история — из `GET /orders/{id}`).
 
 - Адрес — `http://localhost:3000`, порт на хосте — `FRONTEND_PORT`. Сервис `frontend` поднимается вместе со стендом (`make up`).
 - Прокси: браузер ходит только на origin фронта. nginx отдаёт SPA (глубокие ссылки вроде `/orders/<id>` получают `index.html`) и проксирует `/api/*` на `${GATEWAY_URL}/*` со срезанным префиксом (`/api/products` → `http://gateway:8080/products`), поэтому CORS не нужен. `/mail/*` проксируется на `${MAILPIT_URL}/mail/*` без срезания префикса (у Mailpit `MP_WEBROOT=/mail`), включая WebSocket живых обновлений ящика. Адрес gateway резолвится на каждый запрос: фронт стартует и остаётся `healthy` при остановленном gateway, а `/api` в это время отвечает 502/504, и UI показывает «сервис недоступен». Healthcheck — собственный `/healthz` nginx.
