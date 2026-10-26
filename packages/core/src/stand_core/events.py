@@ -8,9 +8,11 @@
 import json
 from collections.abc import Mapping
 from dataclasses import asdict, dataclass
+from datetime import datetime
 from typing import Any
 
 USER_EMAIL_CONFIRMATION_REQUESTED = "user.email_confirmation_requested"
+ORDER_STATUS_CHANGED = "order.status_changed"
 
 
 class InvalidEvent(ValueError):
@@ -41,6 +43,41 @@ def parse_email_confirmation(body: bytes | str | Mapping[str, Any]) -> EmailConf
         code=_require_str(data, "code"),
         display_name=_require_str(data, "display_name"),
         ttl_s=_require_positive_int(data, "ttl_s"),
+        request_id=_optional_str(data, "request_id"),
+    )
+
+
+@dataclass(frozen=True)
+class OrderStatusChanged:
+    """Статус заказа сменился.
+
+    `status` — строка, а не enum: `stand_core` не знает доменных типов сервисов, значение
+    проверяет потребитель. `email` — снимок email покупателя на момент оформления, может быть
+    пустым: событие про смену статуса, а не про письмо.
+    """
+
+    order_id: str
+    user_id: str
+    status: str
+    changed_at: datetime
+    email: str = ""
+    request_id: str | None = None
+
+
+def order_status_changed_payload(event: OrderStatusChanged) -> dict[str, Any]:
+    """Тело события для `Rabbit.publish`; `changed_at` — строка ISO 8601."""
+    return {**asdict(event), "changed_at": event.changed_at.isoformat()}
+
+
+def parse_order_status_changed(body: bytes | str | Mapping[str, Any]) -> OrderStatusChanged:
+    """Разбирает тело сообщения; при любой ошибке — `InvalidEvent` с понятным текстом."""
+    data = _load(body)
+    return OrderStatusChanged(
+        order_id=_require_str(data, "order_id"),
+        user_id=_require_str(data, "user_id"),
+        status=_require_str(data, "status"),
+        changed_at=_require_datetime(data, "changed_at"),
+        email=_optional_str(data, "email") or "",
         request_id=_optional_str(data, "request_id"),
     )
 
@@ -83,3 +120,11 @@ def _optional_str(data: Mapping[str, Any], name: str) -> str | None:
     if value is not None and not isinstance(value, str):
         raise InvalidEvent(f"event field {name!r} must be a string or null")
     return value
+
+
+def _require_datetime(data: Mapping[str, Any], name: str) -> datetime:
+    value = _require(data, name)
+    try:
+        return datetime.fromisoformat(value)
+    except (TypeError, ValueError) as exc:
+        raise InvalidEvent(f"event field {name!r} must be an ISO 8601 datetime string") from exc
