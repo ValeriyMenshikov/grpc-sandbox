@@ -6,7 +6,7 @@ from datetime import timedelta
 
 import pytest
 from order_service.fulfillment import Fulfillment
-from order_service.models import OrderStatus, StatusChange
+from order_service.models import OrderStatus, OrderStatusEvent
 from order_service.settings import OrderSettings
 
 from .fakes import FakeEvents, FakeRepository
@@ -55,7 +55,7 @@ async def test_advance_moves_active_orders_one_step_and_publishes(
         (created.order_id, OrderStatus.PAID),
         (assembling.order_id, OrderStatus.HANDED_TO_COURIER),
     ]
-    assert events.published == changes
+    assert events.published == [change.change() for change in changes]
     assert repository.orders[cancelled.order_id] == cancelled
     assert repository.orders[delivered.order_id] == delivered
 
@@ -99,7 +99,7 @@ class FlakyRepository(FakeRepository):
         super().__init__()
         self.calls = 0
 
-    async def advance_due(self, step: timedelta) -> list[StatusChange]:
+    async def advance_due(self, step: timedelta) -> list[OrderStatusEvent]:
         self.calls += 1
         if self.calls == 1:
             raise OSError("postgres is down")

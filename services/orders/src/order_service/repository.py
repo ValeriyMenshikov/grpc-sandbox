@@ -14,6 +14,7 @@ from order_service.models import (
     Order,
     OrderItem,
     OrderStatus,
+    OrderStatusEvent,
     StatusChange,
 )
 
@@ -41,22 +42,46 @@ WHERE order_id = ANY($1::text[])
 ORDER BY order_id, position
 """
 
-# Статус проверяется в том же UPDATE: отмена не обгонит передачу курьеру
+_INSERT_HISTORY = """
+INSERT INTO orders.order_status_history (order_id, status, changed_at) VALUES ($1, $2, $3)
+"""
+
+_HISTORY = """
+SELECT order_id, status, changed_at
+FROM orders.order_status_history
+WHERE order_id = $1
+ORDER BY changed_at, id
+"""
+
+# Статус проверяется в том же UPDATE: отмена не обгонит передачу курьеру. Строка истории
+# пишется тем же statement: data-modifying CTE выполняется атомарно с основным запросом
 _CANCEL = f"""
-UPDATE orders.orders SET status = 'CANCELLED', updated_at = now()
-WHERE order_id = $1 AND status = ANY($2::text[])
-RETURNING {_ORDER_COLUMNS}
+WITH cancelled AS (
+    UPDATE orders.orders SET status = 'CANCELLED', updated_at = now()
+    WHERE order_id = $1 AND status = ANY($2::text[])
+    RETURNING {_ORDER_COLUMNS}
+), history AS (
+    INSERT INTO orders.order_status_history (order_id, status, changed_at)
+    SELECT order_id, status, updated_at FROM cancelled
+)
+SELECT {_ORDER_COLUMNS} FROM cancelled
 """
 
 # Имитация доставки: на шаг вперёд — заказы, простоявшие в статусе не меньше шага. Время — часы
 # Postgres. Условие на статус и updated_at перепроверяется под блокировкой строки, поэтому
-# параллельная отмена или вторая реплика не продвинут заказ дважды
+# параллельная отмена или вторая реплика не продвинут заказ дважды. История пишется тем же
+# statement (CTE), без явной транзакции и второго round-trip
 _ADVANCE = (
-    "UPDATE orders.orders SET status = CASE status "
+    "WITH advanced AS (UPDATE orders.orders SET status = CASE status "
     + " ".join(f"WHEN '{current}' THEN '{following}'" for current, following in NEXT_STATUS.items())
     + """ END, updated_at = now()
 WHERE status = ANY($1::text[]) AND updated_at <= now() - $2::interval
-RETURNING order_id, status, updated_at
+RETURNING order_id, user_id, status, updated_at
+), history AS (
+    INSERT INTO orders.order_status_history (order_id, status, changed_at)
+    SELECT order_id, status, updated_at FROM advanced
+)
+SELECT order_id, user_id, status, updated_at FROM advanced
 """
 )
 
@@ -80,9 +105,13 @@ class OrderRepository(Client):
         await self._postgres.apply_schema(SCHEMA_PATH)
 
     async def create_order(self, order_id: str, user_id: str, items: Sequence[OrderItem]) -> Order:
-        """Новый заказ в статусе CREATED с позициями — одной транзакцией."""
+        """Новый заказ в статусе CREATED с позициями и строкой истории — одной транзакцией."""
         async with self._postgres.pool.acquire() as connection, connection.transaction():
             record = await connection.fetchrow(_INSERT_ORDER, order_id, user_id)
+            assert record is not None
+            await connection.execute(
+                _INSERT_HISTORY, order_id, record["status"], record["created_at"]
+            )
             await connection.execute(
                 _INSERT_ITEMS,
                 order_id,
@@ -91,7 +120,6 @@ class OrderRepository(Client):
                 [item.quantity for item in items],
                 [item.price_kopecks for item in items],
             )
-        assert record is not None
         return _order(record, items)
 
     async def get_order(self, order_id: str) -> Order | None:
@@ -126,13 +154,27 @@ class OrderRepository(Client):
             return None
         return (await self._with_items([record]))[0]
 
-    async def advance_due(self, step: timedelta) -> list[StatusChange]:
+    async def advance_due(self, step: timedelta) -> list[OrderStatusEvent]:
         """Продвинуть по доставке заказы, простоявшие в статусе `step`; отменённые не трогаются."""
         records = await self._postgres.pool.fetch(
             _ADVANCE, [status.value for status in NEXT_STATUS], step
         )
         return [
-            StatusChange(record["order_id"], OrderStatus(record["status"]), record["updated_at"])
+            OrderStatusEvent(
+                order_id=record["order_id"],
+                user_id=record["user_id"],
+                email="",
+                status=OrderStatus(record["status"]),
+                changed_at=record["updated_at"],
+            )
+            for record in records
+        ]
+
+    async def status_history(self, order_id: str) -> list[StatusChange]:
+        """Смены статуса заказа от старой к новой; заказ без истории — пустой список."""
+        records = await self._postgres.pool.fetch(_HISTORY, order_id)
+        return [
+            StatusChange(record["order_id"], OrderStatus(record["status"]), record["changed_at"])
             for record in records
         ]
 

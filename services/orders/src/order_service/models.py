@@ -27,6 +27,18 @@ NEXT_STATUS: dict[OrderStatus, OrderStatus] = {
 FINAL_STATUSES = frozenset({OrderStatus.DELIVERED, OrderStatus.CANCELLED})
 
 
+def _delivery_steps() -> tuple[OrderStatus, ...]:
+    steps = [OrderStatus.CREATED]
+    while (following := NEXT_STATUS.get(steps[-1])) is not None:
+        steps.append(following)
+    return tuple(steps)
+
+
+# Порядок шагов доставки от CREATED до DELIVERED — выводится из NEXT_STATUS; CANCELLED в него
+# не входит
+DELIVERY_STEPS = _delivery_steps()
+
+
 @dataclass(frozen=True)
 class OrderItem:
     product_id: str
@@ -57,3 +69,19 @@ class StatusChange:
     order_id: str
     status: OrderStatus
     changed_at: datetime
+
+
+@dataclass(frozen=True)
+class OrderStatusEvent:
+    """Смена статуса с тем, кому принадлежит заказ: из неё строится доменное событие."""
+
+    order_id: str
+    user_id: str
+    # Снимок email покупателя на момент оформления; "" — неизвестен
+    email: str
+    status: OrderStatus
+    changed_at: datetime
+
+    def change(self) -> StatusChange:
+        """Та же смена для Redis pub/sub `orders.status.{order_id}`."""
+        return StatusChange(self.order_id, self.status, self.changed_at)

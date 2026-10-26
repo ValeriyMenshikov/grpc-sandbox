@@ -17,6 +17,7 @@ from order_service.models import (
     Order,
     OrderItem,
     OrderStatus,
+    OrderStatusEvent,
     StatusChange,
 )
 from order_service.repository import OrderRepository
@@ -79,17 +80,19 @@ class FakeRepository(OrderRepository):
         self.orders[order_id] = order
         return order
 
-    async def advance_due(self, step: timedelta) -> list[StatusChange]:
+    async def advance_due(self, step: timedelta) -> list[OrderStatusEvent]:
         """Каждый заказ в доставке — на шаг вперёд, без учёта `step` (его проверяет SQL-тест)."""
-        changes = []
+        events = []
         for order in list(self.orders.values()):
             following = NEXT_STATUS.get(order.status)
             if following is None:
                 continue
             order = replace(order, status=following, updated_at=self.tick())
             self.orders[order.order_id] = order
-            changes.append(StatusChange(order.order_id, order.status, order.updated_at))
-        return changes
+            events.append(
+                OrderStatusEvent(order.order_id, order.user_id, "", order.status, order.updated_at)
+            )
+        return events
 
 
 class FakeCarts(Carts):

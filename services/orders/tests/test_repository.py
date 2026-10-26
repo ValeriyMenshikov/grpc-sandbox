@@ -11,7 +11,7 @@ from datetime import timedelta
 
 import asyncpg
 import pytest
-from order_service.models import Order, OrderItem, OrderStatus
+from order_service.models import DELIVERY_STEPS, NEXT_STATUS, Order, OrderItem, OrderStatus
 from order_service.repository import OrderRepository
 from order_service.settings import OrderSettings
 from stand_core.clients import Postgres
@@ -146,3 +146,51 @@ async def test_advance_due_returns_changed_at_as_stored(repository: OrderReposit
 
     assert found is not None
     assert change.changed_at == found.updated_at
+
+
+async def test_status_history_records_each_change(repository: OrderRepository) -> None:
+    order = await create(repository)
+    assert [change.status for change in await repository.status_history(order.order_id)] == [
+        OrderStatus.CREATED
+    ]
+
+    [event] = await repository.advance_due(timedelta())
+    history = await repository.status_history(order.order_id)
+
+    assert [change.status for change in history] == [OrderStatus.CREATED, OrderStatus.PAID]
+    assert history[0].changed_at == order.created_at
+    assert history[-1].changed_at == event.changed_at
+    assert await repository.status_history("missing") == []
+
+
+async def test_cancel_records_history(repository: OrderRepository) -> None:
+    order = await create(repository)
+
+    cancelled = await repository.cancel(order.order_id)
+    history = await repository.status_history(order.order_id)
+
+    assert cancelled is not None
+    assert [change.status for change in history] == [OrderStatus.CREATED, OrderStatus.CANCELLED]
+    assert history[-1].changed_at == cancelled.updated_at
+    # Неудачная повторная отмена историю не трогает
+    assert await repository.cancel(order.order_id) is None
+    assert len(await repository.status_history(order.order_id)) == 2
+
+
+async def test_advance_due_returns_user_id(repository: OrderRepository) -> None:
+    order = await create(repository, user_id="u-1")
+
+    events = await repository.advance_due(timedelta())
+
+    assert [(event.order_id, event.user_id, event.email) for event in events] == [
+        (order.order_id, "u-1", "")
+    ]
+
+
+def test_delivery_steps_match_next_status() -> None:
+    assert DELIVERY_STEPS[0] is OrderStatus.CREATED
+    assert DELIVERY_STEPS[-1] is OrderStatus.DELIVERED
+    assert OrderStatus.CANCELLED not in DELIVERY_STEPS
+    assert all(
+        NEXT_STATUS[step] is DELIVERY_STEPS[i + 1] for i, step in enumerate(DELIVERY_STEPS[:-1])
+    )

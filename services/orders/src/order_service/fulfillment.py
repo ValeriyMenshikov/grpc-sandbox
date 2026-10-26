@@ -7,7 +7,7 @@ from nuke_di import Client, client_dataclass
 from stand_core.logging import get_logger
 
 from order_service.events import OrderEvents
-from order_service.models import StatusChange
+from order_service.models import OrderStatusEvent
 from order_service.repository import OrderRepository
 from order_service.settings import OrderSettings
 
@@ -37,15 +37,13 @@ class Fulfillment(Client):
     def poll_interval_s(self) -> float:
         return min(self.step.total_seconds(), MAX_POLL_INTERVAL_S)
 
-    async def advance(self) -> list[StatusChange]:
+    async def advance(self) -> list[OrderStatusEvent]:
         """Один проход: продвинуть заказы, которым пора, и опубликовать смены статуса."""
-        changes = await self._repository.advance_due(self.step)
-        for change in changes:
-            logger.info(
-                "orders.status_changed", order_id=change.order_id, status=change.status.value
-            )
-            await self._events.publish_quietly(change)
-        return changes
+        events = await self._repository.advance_due(self.step)
+        for event in events:
+            logger.info("orders.status_changed", order_id=event.order_id, status=event.status.value)
+            await self._events.publish_quietly(event.change())
+        return events
 
     async def run(self) -> None:
         """Проходы до отмены задачи; ошибка прохода (нет Postgres) не останавливает доставку."""

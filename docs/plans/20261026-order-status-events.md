@@ -144,7 +144,7 @@ git commit -m "feat: событие order.status_changed в stand_core.events"
 
 Таблица `orders.order_status_history` (`order_id` с `REFERENCES orders.orders ON DELETE CASCADE`, `status`, `changed_at timestamptz NOT NULL DEFAULT now()`) и индекс по `(order_id, changed_at)`. `advance_due` переписывается в один statement: `WITH advanced AS (UPDATE ... RETURNING order_id, user_id, email, status, updated_at) INSERT INTO orders.order_status_history (order_id, status, changed_at) SELECT ... FROM advanced RETURNING ...` — атомарность без явной транзакции и без второго round-trip. Поле `email` появляется в Task 3; в этой задаче `advance_due` возвращает `email=""`, и `OrderStatusEvent.email` заполняется в Task 3.
 
-- [ ] **Step 1: Написать падающие тесты** (пропускаются без Postgres, как соседние в файле)
+- [x] **Step 1: Написать падающие тесты** (пропускаются без Postgres, как соседние в файле)
 
 ```python
 async def test_status_history_records_each_change(repository: OrderRepository) -> None:
@@ -180,21 +180,21 @@ async def test_delivery_steps_match_next_status() -> None:
     )
 ```
 
-- [ ] **Step 2: Запустить тесты, убедиться, что падают**
+- [x] **Step 2: Запустить тесты, убедиться, что падают**
 
 Run: `uv run pytest services/orders/tests/test_repository.py -v`
 Expected: FAIL — нет `status_history` / `DELIVERY_STEPS`.
 
-- [ ] **Step 3: Реализовать**
+- [x] **Step 3: Реализовать**
 
 Таблицу в `schema.sql`, `OrderStatusEvent` и `DELIVERY_STEPS` в `models.py`, `status_history` и правку `_ADVANCE`/`create_order`/`_CANCEL` в `repository.py`. `cancel_order_u_u.py` правится только под новый тип, если `cancel` стал возвращать больше, — публикация в Redis остаётся как есть.
 
-- [ ] **Step 4: Запустить тесты и проверки**
+- [x] **Step 4: Запустить тесты и проверки**
 
 Run: `uv run pytest services/orders -v && make check`
 Expected: PASS (тесты `test_fulfillment.py` могут требовать правки под новый тип `advance_due` — поправить их здесь же).
 
-- [ ] **Step 5: Коммит**
+- [x] **Step 5: Коммит**
 
 ```bash
 git add services/orders

@@ -33,3 +33,18 @@ CREATE TABLE IF NOT EXISTS orders.order_items (
 CREATE INDEX IF NOT EXISTS orders_in_fulfillment_idx
     ON orders.orders (updated_at)
     WHERE status IN ('CREATED', 'PAID', 'ASSEMBLING', 'HANDED_TO_COURIER');
+
+-- История смен статуса: источник истины для таймлайна покупателя. Строка пишется в той же
+-- операции, что и смена статуса в orders.orders
+CREATE TABLE IF NOT EXISTS orders.order_status_history (
+    -- Порядок вставки: различает смены с одинаковым changed_at
+    id         bigint      GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    order_id   text        NOT NULL REFERENCES orders.orders (order_id) ON DELETE CASCADE,
+    status     text        NOT NULL CHECK (status IN (
+        'CREATED', 'PAID', 'ASSEMBLING', 'HANDED_TO_COURIER', 'DELIVERED', 'CANCELLED'
+    )),
+    changed_at timestamptz NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS order_status_history_order_idx
+    ON orders.order_status_history (order_id, changed_at);
