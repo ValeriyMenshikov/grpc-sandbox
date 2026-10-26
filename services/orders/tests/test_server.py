@@ -1,4 +1,4 @@
-"""order-service целиком на in-process сервере; StockClient и CatalogClient — через DI.override."""
+"""order-service целиком на in-process сервере; клиенты к соседям — через DI.override."""
 
 from collections.abc import AsyncIterator, Iterator
 
@@ -17,6 +17,7 @@ from order_service.models import OrderStatus
 from order_service.repository import OrderRepository
 from order_service.settings import OrderSettings
 from order_service.stock_client import StockClient
+from order_service.users_client import UsersClient
 from orders.v1 import orders_pb2
 from orders.v1 import orders_pb2_grpc as orders_grpc
 from stand_core.clients import Sessions
@@ -44,6 +45,7 @@ from .fakes import (
     FakeIdempotency,
     FakeRepository,
     FakeStock,
+    FakeUsers,
 )
 
 BUYER_TOKEN = "buyer-token"
@@ -80,6 +82,7 @@ async def stub(
     stock: FakeStock,
     catalog: FakeCatalog,
     events: FakeEvents,
+    users: FakeUsers,
     policies: None,
 ) -> AsyncIterator["orders_grpc.OrderServiceAsyncStub"]:
     container = Dependencies()
@@ -95,7 +98,11 @@ async def stub(
         StreamCountInterceptor(),
         ExceptionHandlingInterceptor(),
     ]
-    with container.override(StockClient, stock), container.override(CatalogClient, catalog):
+    with (
+        container.override(StockClient, stock),
+        container.override(CatalogClient, catalog),
+        container.override(UsersClient, users),
+    ):
         handlers = inject_handlers(
             {s: a for s, a in GRPC_HANDLERS.items() if s.package == "orders.v1"}, container
         )

@@ -2,6 +2,7 @@ import asyncio
 from collections.abc import Mapping
 from unittest.mock import Mock
 
+import grpc
 import pytest
 from order_service.handlers.checkout_u_u import checkout
 from order_service.idempotency import IdempotencyRecord
@@ -18,6 +19,7 @@ from .fakes import (
     FakeIdempotency,
     FakeRepository,
     FakeStock,
+    FakeUsers,
 )
 
 pytestmark = pytest.mark.usefixtures("buyer")
@@ -34,8 +36,10 @@ class Checkout:
         stock: FakeStock,
         catalog: FakeCatalog,
         settings: OrderSettings,
+        users: FakeUsers | None = None,
     ) -> None:
-        self.args = (carts, idempotency, repository, stock, catalog, settings)
+        self.users = FakeUsers() if users is None else users
+        self.args = (carts, idempotency, repository, stock, catalog, self.users, settings)
 
     async def __call__(self, key: str | None = "key-1") -> orders_pb2.CheckoutResponse:
         context = Mock()
@@ -52,10 +56,11 @@ def call(
     repository: FakeRepository,
     stock: FakeStock,
     catalog: FakeCatalog,
+    users: FakeUsers,
     settings: OrderSettings,
 ) -> Checkout:
     carts.carts[BUYER_ID] = {"p-1": 2, "p-2": 1}
-    return Checkout(carts, idempotency, repository, stock, catalog, settings)
+    return Checkout(carts, idempotency, repository, stock, catalog, settings, users)
 
 
 async def test_creates_order_reserves_stock_and_clears_cart(
@@ -374,4 +379,70 @@ async def test_cancel_after_order_created_still_commits_key(
     [order_id] = repository.orders
     assert idempotency.records[BUYER_ID, "key-1"] == IdempotencyRecord(order_id, pending=False)
     assert BUYER_ID not in carts.carts
+    assert stock.quietly_released == []
+
+
+async def test_checkout_snapshots_email(
+    call: Checkout, users: FakeUsers, repository: FakeRepository
+) -> None:
+    response = await call()
+
+    assert repository.orders[response.order.order_id].email == "buyer@example.com"
+    # GetMe отвечает про владельца токена — authorization покупателя пробрасывается
+    assert users.calls == [("/users.v1.UserService/GetMe", True)]
+
+
+@pytest.mark.parametrize(
+    "error",
+    [
+        DependencyUnavailable("users"),
+        grpc.aio.AioRpcError(
+            grpc.StatusCode.UNAUTHENTICATED, grpc.aio.Metadata(), grpc.aio.Metadata()
+        ),
+    ],
+)
+async def test_checkout_succeeds_when_users_unavailable(
+    call: Checkout,
+    users: FakeUsers,
+    repository: FakeRepository,
+    error: DependencyUnavailable | grpc.aio.AioRpcError,
+) -> None:
+    users.error = error
+
+    response = await call()
+
+    assert repository.orders[response.order.order_id].email == ""
+    assert response.order.status == orders_pb2.ORDER_STATUS_CREATED
+
+
+async def test_checkout_without_email_when_users_is_slow(
+    call: Checkout, users: FakeUsers, repository: FakeRepository, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("USERS_EMAIL_TIMEOUT_S", "0.01")
+    call.args = (*call.args[:-1], OrderSettings())
+    users.delay_s = 1.0
+
+    response = await call()
+
+    assert repository.orders[response.order.order_id].email == ""
+
+
+async def test_checkout_does_not_reserve_before_users_call(
+    call: Checkout, users: FakeUsers, stock: FakeStock
+) -> None:
+    """users спрашиваем до резерва: его отказ не должен попадать в компенсацию."""
+    reserved_before_users: list[int] = []
+
+    class OrderedUsers(FakeUsers):
+        async def email(self) -> str:
+            reserved_before_users.append(len(stock.reserve_calls))
+            return await super().email()
+
+    ordered = OrderedUsers(error=DependencyUnavailable("users"))
+    call.args = (*call.args[:5], ordered, call.args[6])
+
+    await call()
+
+    assert reserved_before_users == [0]
+    assert stock.released == []
     assert stock.quietly_released == []

@@ -1,4 +1,4 @@
-"""Репозиторий, Redis-хранилища и клиенты к catalog в памяти для unit-тестов."""
+"""Репозиторий, Redis-хранилища и клиенты к catalog и users в памяти для unit-тестов."""
 
 import asyncio
 from collections.abc import AsyncIterator, Awaitable, Callable, Iterable, Mapping, Sequence
@@ -6,7 +6,9 @@ from contextlib import asynccontextmanager
 from dataclasses import replace
 from datetime import UTC, datetime, timedelta
 
+import grpc
 from catalog.v1 import catalog_pb2
+from google.protobuf.message import Message
 from order_service.carts import MAX_CART_QUANTITY, Carts
 from order_service.catalog_client import CatalogClient
 from order_service.events import OrderEvents, Subscription
@@ -22,7 +24,10 @@ from order_service.models import (
 )
 from order_service.repository import OrderRepository
 from order_service.stock_client import StockClient
-from stand_core.grpc import FailedPrecondition, PreconditionViolation
+from order_service.users_client import GET_ME, UsersClient
+from stand_core.clients.grpc_client import ResponseT
+from stand_core.grpc import DependencyUnavailable, FailedPrecondition, PreconditionViolation
+from users.v1 import users_pb2
 
 EPOCH = datetime(2026, 1, 1, tzinfo=UTC)
 BUYER_ID = "u-buyer"
@@ -48,13 +53,15 @@ class FakeRepository(OrderRepository):
         items: Sequence[OrderItem] = (OrderItem("p-1", "Наушники", 1, 100_00),),
     ) -> Order:
         now = self.tick()
-        order = Order(f"o-{len(self.orders) + 1}", user_id, status, tuple(items), now, now)
+        order = Order(f"o-{len(self.orders) + 1}", user_id, status, tuple(items), now, now, "")
         self.orders[order.order_id] = order
         return order
 
-    async def create_order(self, order_id: str, user_id: str, items: Sequence[OrderItem]) -> Order:
+    async def create_order(
+        self, order_id: str, user_id: str, items: Sequence[OrderItem], email: str = ""
+    ) -> Order:
         now = self.tick()
-        order = Order(order_id, user_id, OrderStatus.CREATED, tuple(items), now, now)
+        order = Order(order_id, user_id, OrderStatus.CREATED, tuple(items), now, now, email)
         self.orders[order_id] = order
         return order
 
@@ -90,7 +97,9 @@ class FakeRepository(OrderRepository):
             order = replace(order, status=following, updated_at=self.tick())
             self.orders[order.order_id] = order
             events.append(
-                OrderStatusEvent(order.order_id, order.user_id, "", order.status, order.updated_at)
+                OrderStatusEvent(
+                    order.order_id, order.user_id, order.email, order.status, order.updated_at
+                )
             )
         return events
 
@@ -203,6 +212,39 @@ class FakeStock(StockClient):
 
     async def release_quietly(self, order_id: str) -> None:
         self.quietly_released.append(order_id)
+
+
+class FakeUsers(UsersClient):
+    """UserService без сети: подменён `unary`, разбор ответа и ошибок — настоящий `email()`."""
+
+    def __init__(
+        self, email: str = "", error: DependencyUnavailable | grpc.aio.AioRpcError | None = None
+    ) -> None:
+        self.answer = email
+        self.error = error
+        # Сколько ждать перед ответом: так проверяется таймаут Checkout
+        self.delay_s = 0.0
+        # (метод, проброшен ли authorization) каждого вызова
+        self.calls: list[tuple[str, bool]] = []
+
+    async def unary(
+        self,
+        method: str,
+        request: Message,
+        response_type: type[ResponseT],
+        *,
+        forward_authorization: bool = False,
+        metadata: Sequence[tuple[str, str]] = (),
+        deadline: float | None = None,
+    ) -> ResponseT:
+        self.calls.append((method, forward_authorization))
+        await asyncio.sleep(self.delay_s)
+        if self.error is not None:
+            raise self.error
+        assert method == GET_ME
+        return response_type.FromString(
+            users_pb2.GetMeResponse(user=users_pb2.User(email=self.answer)).SerializeToString()
+        )
 
 
 class FakeSubscription(Subscription):

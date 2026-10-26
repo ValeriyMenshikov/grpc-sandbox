@@ -13,6 +13,7 @@ from order_service.handlers.checkout_u_u import checkout
 from order_service.idempotency import IdempotencyKeys, IdempotencyRecord
 from order_service.repository import OrderRepository
 from order_service.stock_client import StockClient
+from order_service.users_client import UsersClient
 from orders.v1 import orders_pb2
 from stand_core.clients import Sessions
 from stand_core.grpc import (
@@ -40,7 +41,7 @@ from stand_core.settings import Settings
 from stand_core.testing import rich_status
 
 from .conftest import API_KEY
-from .fakes import BUYER_ID, FakeCarts, FakeIdempotency, FakeRepository
+from .fakes import BUYER_ID, FakeCarts, FakeIdempotency, FakeRepository, FakeUsers
 from .neighbour import Seen, fake_catalog
 
 # grpc округляет timeout вверх при передаче по сети: сосед видит чуть больше отправленного
@@ -130,6 +131,16 @@ async def test_unreachable_catalog_is_dependency_unavailable(
         await client.disconnect()
 
     assert info.value.dependency == "catalog"
+
+
+async def test_unreachable_users_gives_empty_email(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("USERS_ADDR", "localhost:1")
+    client = UsersClient(Settings())
+    await client.connect()
+    try:
+        assert await client.email() == ""
+    finally:
+        await client.disconnect()
 
 
 async def test_carts_use_hash_per_user() -> None:
@@ -227,6 +238,7 @@ async def orders_channel(
     container.mock(Carts, carts)
     container.mock(IdempotencyKeys, FakeIdempotency())
     container.mock(OrderRepository, repository)
+    container.mock(UsersClient, FakeUsers())
     handlers = inject_handlers({CHECKOUT: annotate(checkout)}, container)
     interceptors = [
         RequestIdInterceptor(),

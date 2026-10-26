@@ -151,8 +151,10 @@ services:
       <<: *common-env
       GRPC_PORT: 50053
       CATALOG_ADDR: ${CATALOG_ADDR:-catalog:50052}
+      USERS_ADDR: ${USERS_ADDR:-users:50051}
       IDEMPOTENCY_TTL_S: ${IDEMPOTENCY_TTL_S:-86400}
       FULFILLMENT_STEP_MS: ${FULFILLMENT_STEP_MS:-2000}
+      USERS_EMAIL_TIMEOUT_S: ${USERS_EMAIL_TIMEOUT_S:-2}
     ports:
       - "${ORDERS_PORT:-50053}:50053"
     depends_on:
@@ -164,6 +166,10 @@ services:
         condition: service_healthy
       # Только порядок старта: остановленный позже catalog даёт UNAVAILABLE у Checkout
       catalog:
+        condition: service_healthy
+      # Только порядок старта: users нужен лишь для снимка email в заказе, без него Checkout
+      # оформляет заказ с пустым email
+      users:
         condition: service_healthy
     healthcheck: *grpc-healthcheck
 

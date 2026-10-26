@@ -56,6 +56,8 @@ class Order:
     items: tuple[OrderItem, ...]
     created_at: datetime
     updated_at: datetime
+    # Снимок email покупателя на момент оформления (для писем о заказе); "" — неизвестен
+    email: str
 
     @property
     def total_kopecks(self) -> int:

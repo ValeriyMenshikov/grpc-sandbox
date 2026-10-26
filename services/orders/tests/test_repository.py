@@ -187,6 +187,22 @@ async def test_advance_due_returns_user_id(repository: OrderRepository) -> None:
     ]
 
 
+async def test_email_snapshot_reaches_status_events(repository: OrderRepository) -> None:
+    order = await repository.create_order(str(uuid.uuid4()), "u-1", ITEMS, "buyer@example.com")
+    found = await repository.get_order(order.order_id)
+
+    events = await repository.advance_due(timedelta())
+    cancelled = await repository.cancel(order.order_id)
+
+    assert order.email == "buyer@example.com"
+    assert found == order
+    assert [event.email for event in events if event.order_id == order.order_id] == [
+        "buyer@example.com"
+    ]
+    assert cancelled is not None
+    assert cancelled.email == "buyer@example.com"
+
+
 def test_delivery_steps_match_next_status() -> None:
     assert DELIVERY_STEPS[0] is OrderStatus.CREATED
     assert DELIVERY_STEPS[-1] is OrderStatus.DELIVERED

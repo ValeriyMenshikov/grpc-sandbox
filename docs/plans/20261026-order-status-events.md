@@ -219,7 +219,7 @@ git commit -m "feat: история статусов заказа в Postgres"
 
 `orders.orders` получает `email text NOT NULL DEFAULT ''`. `Checkout` зовёт `users.email()` **до** `place_order` (то есть до `ReserveStock`), под `asyncio.timeout(settings.users_email_timeout_s)`; таймаут и любая ошибка — пустой email и предупреждение в лог. Контракт ошибок `Checkout` не меняется.
 
-- [ ] **Step 1: Написать падающие тесты**
+- [x] **Step 1: Написать падающие тесты**
 
 ```python
 async def test_checkout_snapshots_email(...) -> None:
@@ -241,21 +241,21 @@ async def test_checkout_does_not_reserve_before_users_call(...) -> None:
     assert stock.released == []
 ```
 
-- [ ] **Step 2: Запустить тесты, убедиться, что падают**
+- [x] **Step 2: Запустить тесты, убедиться, что падают**
 
 Run: `uv run pytest services/orders/tests/test_checkout.py -v`
 Expected: FAIL — у `checkout` нет параметра `users`.
 
-- [ ] **Step 3: Реализовать `UsersClient`, колонку, снимок в `Checkout`**
+- [x] **Step 3: Реализовать `UsersClient`, колонку, снимок в `Checkout`**
 
 `FakeUsers` — в `services/orders/tests/fakes.py` рядом с существующими фейками. В `docker-compose.yml` у `orders`: `USERS_ADDR: users:50051` и `users` в `depends_on` (`condition: service_healthy`), с комментарием, что зависимость нужна только для снимка email и `Checkout` без неё не падает.
 
-- [ ] **Step 4: Запустить тесты и проверки**
+- [x] **Step 4: Запустить тесты и проверки**
 
 Run: `uv run pytest services/orders -v && make check`
 Expected: PASS.
 
-- [ ] **Step 5: Коммит**
+- [x] **Step 5: Коммит**
 
 ```bash
 git add services/orders docker-compose.yml .env.example

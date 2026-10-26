@@ -23,6 +23,7 @@ from order_service.models import Order, OrderItem
 from order_service.repository import OrderRepository
 from order_service.settings import OrderSettings
 from order_service.stock_client import StockClient
+from order_service.users_client import UsersClient
 
 logger = get_logger(__name__)
 
@@ -83,10 +84,21 @@ async def finalize(
     await carts.clear(user_id)
 
 
+async def buyer_email(users: UsersClient, timeout_s: float) -> str:
+    """Email покупателя для снимка в заказе; "" — users-service не ответил за `timeout_s`."""
+    try:
+        async with asyncio.timeout(timeout_s):
+            return await users.email()
+    except TimeoutError:
+        logger.warning("orders.users_email_timeout", timeout_s=timeout_s)
+        return ""
+
+
 async def place_order(
     order_id: str,
     user_id: str,
     cart: Mapping[str, int],
+    email: str,
     stock: StockClient,
     catalog: CatalogClient,
     repository: OrderRepository,
@@ -118,7 +130,7 @@ async def place_order(
             )
             for product_id, quantity in cart.items()
         ]
-        return await repository.create_order(order_id, user_id, items)
+        return await repository.create_order(order_id, user_id, items, email)
     except BaseException:
         # BaseException: отмена (CancelledError) тоже не должна оставить резерв навсегда
         await release_reserve(stock, order_id)
@@ -134,6 +146,7 @@ async def checkout(
     repository: OrderRepository,
     stock: StockClient,
     catalog: CatalogClient,
+    users: UsersClient,
     settings: OrderSettings,
 ) -> orders_pb2.CheckoutResponse:
     key = idempotency_key(context)
@@ -149,6 +162,8 @@ async def checkout(
             [PreconditionViolation("CART_EMPTY", f"cart:{user_id}", "add items before checkout")],
             message="Cart is empty",
         )
+    # До резерва и до метки ключа: ни отказ users, ни отмена на этом шаге нечего компенсировать
+    email = await buyer_email(users, settings.users_email_timeout_s)
     # order_id выбираем сами: он же ключ идемпотентного резерва в catalog
     order_id = str(uuid.uuid4())
     if not await idempotency.claim(user_id, key, order_id):
@@ -158,7 +173,7 @@ async def checkout(
             raise FailedPrecondition(message="Idempotency key is busy, retry")
         return orders_pb2.CheckoutResponse(order=order_pb(order))
     try:
-        order = await place_order(order_id, user_id, cart, stock, catalog, repository)
+        order = await place_order(order_id, user_id, cart, email, stock, catalog, repository)
     except Exception:
         # Заказа нет — ключ свободен для повтора (если его ещё держит этот вызов)
         await idempotency.forget(user_id, key, IdempotencyRecord(order_id, pending=True))

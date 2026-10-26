@@ -1,4 +1,4 @@
-"""Дерево клиентов order-service собирается из настоящего main.py (без Postgres, Redis, catalog)."""
+"""Дерево клиентов order-service собирается из настоящего main.py (без Postgres, Redis, соседей)."""
 
 import json
 import os
@@ -16,6 +16,7 @@ from order_service.idempotency import IdempotencyKeys
 from order_service.repository import OrderRepository
 from order_service.settings import OrderSettings
 from order_service.stock_client import StockClient
+from order_service.users_client import UsersClient
 from stand_core.clients import Postgres, Redis
 from stand_core.grpc import GRPC_HANDLERS, AuthPolicy, inject_handlers
 
@@ -58,6 +59,7 @@ def test_main_builds_client_tree() -> None:
         "OrderEvents",
         "StockClient",
         "CatalogClient",
+        "UsersClient",
         "Postgres",
         "Redis",
         "OrderSettings",
@@ -87,6 +89,7 @@ def test_handlers_inject_clients() -> None:
         OrderEvents,
         StockClient,
         CatalogClient,
+        UsersClient,
         Postgres,
         Redis,
         OrderSettings,

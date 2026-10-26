@@ -10,8 +10,13 @@ CREATE TABLE IF NOT EXISTS orders.orders (
         'CREATED', 'PAID', 'ASSEMBLING', 'HANDED_TO_COURIER', 'DELIVERED', 'CANCELLED'
     )),
     created_at timestamptz NOT NULL DEFAULT now(),
-    updated_at timestamptz NOT NULL DEFAULT now()
+    updated_at timestamptz NOT NULL DEFAULT now(),
+    -- Снимок email покупателя на момент оформления; '' — users-service не ответил
+    email      text        NOT NULL DEFAULT ''
 );
+
+-- База, созданная до появления колонки email (volume пережил обновление стенда)
+ALTER TABLE orders.orders ADD COLUMN IF NOT EXISTS email text NOT NULL DEFAULT '';
 
 -- ListOrders: заказы пользователя, новые первыми
 CREATE INDEX IF NOT EXISTS orders_user_created_idx

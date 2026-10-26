@@ -13,6 +13,7 @@ from .fakes import (
     FakeIdempotency,
     FakeRepository,
     FakeStock,
+    FakeUsers,
     product,
 )
 
@@ -56,6 +57,11 @@ def catalog() -> FakeCatalog:
 @pytest.fixture
 def stock() -> FakeStock:
     return FakeStock({"p-1": 10, "p-2": 3})
+
+
+@pytest.fixture
+def users() -> FakeUsers:
+    return FakeUsers(email="buyer@example.com")
 
 
 @pytest.fixture

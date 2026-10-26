@@ -20,11 +20,11 @@ from order_service.models import (
 
 SCHEMA_PATH = Path(__file__).with_name("schema.sql")
 
-_ORDER_COLUMNS = "order_id, user_id, status, created_at, updated_at"
+_ORDER_COLUMNS = "order_id, user_id, status, created_at, updated_at, email"
 
 _INSERT_ORDER = f"""
-INSERT INTO orders.orders (order_id, user_id, status)
-VALUES ($1, $2, 'CREATED')
+INSERT INTO orders.orders (order_id, user_id, status, email)
+VALUES ($1, $2, 'CREATED', $3)
 RETURNING {_ORDER_COLUMNS}
 """
 
@@ -76,12 +76,12 @@ _ADVANCE = (
     + " ".join(f"WHEN '{current}' THEN '{following}'" for current, following in NEXT_STATUS.items())
     + """ END, updated_at = now()
 WHERE status = ANY($1::text[]) AND updated_at <= now() - $2::interval
-RETURNING order_id, user_id, status, updated_at
+RETURNING order_id, user_id, email, status, updated_at
 ), history AS (
     INSERT INTO orders.order_status_history (order_id, status, changed_at)
     SELECT order_id, status, updated_at FROM advanced
 )
-SELECT order_id, user_id, status, updated_at FROM advanced
+SELECT order_id, user_id, email, status, updated_at FROM advanced
 """
 )
 
@@ -94,6 +94,7 @@ def _order(record: asyncpg.Record, items: Sequence[OrderItem]) -> Order:
         items=tuple(items),
         created_at=record["created_at"],
         updated_at=record["updated_at"],
+        email=record["email"],
     )
 
 
@@ -104,10 +105,15 @@ class OrderRepository(Client):
     async def connect(self) -> None:
         await self._postgres.apply_schema(SCHEMA_PATH)
 
-    async def create_order(self, order_id: str, user_id: str, items: Sequence[OrderItem]) -> Order:
-        """Новый заказ в статусе CREATED с позициями и строкой истории — одной транзакцией."""
+    async def create_order(
+        self, order_id: str, user_id: str, items: Sequence[OrderItem], email: str = ""
+    ) -> Order:
+        """Новый заказ в статусе CREATED с позициями и строкой истории — одной транзакцией.
+
+        `email` — снимок email покупателя на момент оформления; "" — неизвестен.
+        """
         async with self._postgres.pool.acquire() as connection, connection.transaction():
-            record = await connection.fetchrow(_INSERT_ORDER, order_id, user_id)
+            record = await connection.fetchrow(_INSERT_ORDER, order_id, user_id, email)
             assert record is not None
             await connection.execute(
                 _INSERT_HISTORY, order_id, record["status"], record["created_at"]
@@ -163,7 +169,7 @@ class OrderRepository(Client):
             OrderStatusEvent(
                 order_id=record["order_id"],
                 user_id=record["user_id"],
-                email="",
+                email=record["email"],
                 status=OrderStatus(record["status"]),
                 changed_at=record["updated_at"],
             )
