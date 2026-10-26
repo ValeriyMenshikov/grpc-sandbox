@@ -2,7 +2,7 @@
 
 import { vi, type Mock } from 'vitest'
 
-import type { User } from './types'
+import type { Order, OrderDetail, OrderStatus, OrderStatusChange, User } from './types'
 
 export const user: User = {
   user_id: 'u1',
@@ -13,6 +13,24 @@ export const user: User = {
   status: 'ACTIVE',
   created_at: null,
   updated_at: null,
+}
+
+// Порядок шагов доставки, как его отдаёт `GET /orders/{id}`
+export const deliverySteps: OrderStatus[] = [
+  'CREATED',
+  'PAID',
+  'ASSEMBLING',
+  'HANDED_TO_COURIER',
+  'DELIVERED',
+]
+
+// Заказ со страницы заказа; без `history` — как заказ, оформленный до появления истории
+export function orderDetail(
+  order: Order,
+  history: OrderStatusChange[] = [],
+  steps: OrderStatus[] = deliverySteps,
+): OrderDetail {
+  return { ...order, history, delivery_steps: steps }
 }
 
 export function jsonResponse(status: number, body: unknown): Response {

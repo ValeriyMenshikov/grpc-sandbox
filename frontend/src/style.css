@@ -807,6 +807,14 @@ button[type='submit']:hover:not(:disabled),
   background: var(--border);
 }
 
+.order-progress .step-time {
+  display: block;
+  margin-top: 0.2rem;
+  color: var(--muted);
+  font-size: 0.75rem;
+  font-weight: 400;
+}
+
 .order-progress .step:last-child::after {
   display: none;
 }

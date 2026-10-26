@@ -542,7 +542,7 @@ git commit -m "feat: GetOrder отдаёт историю статусов и п
 
 `OrderProgress` рисует шаги по `steps` из ответа, подписи берёт из `ORDER_STATUS_LABELS`, а для пройденных шагов показывает время из `history` (`formatDate`). Пустая `history` — шаги без времени, страница рендерится. После `DELIVERED` — заметка «Мы отправили письмо о доставке» со ссылкой на `/mail/`, по образцу `.mail-note` в `ConfirmPage.vue`.
 
-- [ ] **Step 1: Написать падающие тесты**
+- [x] **Step 1: Написать падающие тесты**
 
 ```ts
 it('рисует шаги из ответа бэка, а не из локальной константы', async () => {
@@ -556,21 +556,21 @@ it('заказ без history рендерится', async () => { /* ... */ })
 it('после DELIVERED показывает заметку про письмо со ссылкой на /mail/', async () => { /* ... */ })
 ```
 
-- [ ] **Step 2: Запустить тесты, убедиться, что падают**
+- [x] **Step 2: Запустить тесты, убедиться, что падают**
 
 Run: `make front-test`
 Expected: FAIL.
 
-- [ ] **Step 3: Реализовать**
+- [x] **Step 3: Реализовать**
 
 Обновить фикстуру заказа в `frontend/src/api/testing.ts` под `OrderDetail`, затем типы, `endpoints`, `orders.ts`, компонент и страницу. Проверить, что `DELIVERY_STEPS` больше не упоминается: `grep -rn "DELIVERY_STEPS" frontend/src` — пусто.
 
-- [ ] **Step 4: Запустить проверки фронта**
+- [x] **Step 4: Запустить проверки фронта**
 
 Run: `make front-lint && make front-test`
 Expected: PASS.
 
-- [ ] **Step 5: Коммит**
+- [x] **Step 5: Коммит**
 
 ```bash
 git add frontend

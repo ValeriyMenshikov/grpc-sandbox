@@ -1,5 +1,5 @@
 <script setup lang="ts">
-// Заказ: позиции, итог, даты и прогресс доставки. Статус обновляется поллингом
+// Заказ: позиции, итог, даты и прогресс доставки с историей статусов. Статус обновляется поллингом
 // `GET /orders/{id}` до `DELIVERED` / `CANCELLED` (gateway стримы не публикует).
 import { watch } from 'vue'
 import { RouterLink, useRoute } from 'vue-router'
@@ -79,7 +79,22 @@ watch(
           {{ formatDate(order.updated_at) }}
         </dd>
       </dl>
-      <OrderProgress :status="order.status" />
+      <OrderProgress
+        :status="order.status"
+        :steps="order.delivery_steps"
+        :history="order.history"
+      />
+      <p
+        v-if="order.status === 'DELIVERED'"
+        class="muted mail-note delivered-note"
+      >
+        Мы отправили письмо о доставке. Письма стенда лежат в
+        <a
+          href="/mail/"
+          target="_blank"
+          rel="noopener"
+        >почтовом ящике стенда</a>.
+      </p>
       <table class="cart-table order-items">
         <thead>
           <tr>

@@ -1,4 +1,4 @@
-// Статусы заказа для UI: подписи, шаги доставки, формат дат.
+// Статусы заказа для UI: подписи и формат дат; порядок шагов доставки приходит с бэка.
 
 import type { OrderStatus } from './api/types'
 
@@ -10,15 +10,6 @@ export const ORDER_STATUS_LABELS: Record<OrderStatus, string> = {
   DELIVERED: 'Доставлен',
   CANCELLED: 'Отменён',
 }
-
-// Путь доставки по порядку; `CANCELLED` в него не входит — отдельное состояние
-export const DELIVERY_STEPS: OrderStatus[] = [
-  'CREATED',
-  'PAID',
-  'ASSEMBLING',
-  'HANDED_TO_COURIER',
-  'DELIVERED',
-]
 
 // Дальше статус не меняется — поллинг можно останавливать
 export function isFinalStatus(status: OrderStatus): boolean {

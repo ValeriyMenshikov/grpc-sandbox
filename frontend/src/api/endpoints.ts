@@ -7,6 +7,7 @@ import type {
   ConfirmIn,
   Health,
   Order,
+  OrderDetail,
   OrdersPage,
   OrdersQuery,
   Product,
@@ -77,6 +78,6 @@ export function listOrders(query: OrdersQuery = {}): Promise<OrdersPage> {
   return request('GET', '/orders', { query: { ...query } })
 }
 
-export function getOrder(orderId: string): Promise<Order> {
+export function getOrder(orderId: string): Promise<OrderDetail> {
   return request('GET', `/orders/${segment(orderId)}`)
 }

@@ -4,11 +4,20 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { signIn, signOut } from '../api/auth'
 import * as api from '../api/endpoints'
 import { parseApiError } from '../api/errors'
-import { user } from '../api/testing'
-import type { Cart, Money, Order, OrderStatus, OrdersPage } from '../api/types'
+import { deliverySteps, orderDetail, user } from '../api/testing'
+import type {
+  Cart,
+  Money,
+  Order,
+  OrderDetail,
+  OrderStatus,
+  OrderStatusChange,
+  OrdersPage,
+} from '../api/types'
 import OrderProgress from '../components/OrderProgress.vue'
 import { CHECKOUT_KEY_STORAGE } from '../composables/useCheckout'
 import { POLL_INTERVAL_MS } from '../composables/usePolling'
+import { formatDate } from '../orders'
 import { mountApp } from '../testing'
 
 vi.mock('../api/endpoints')
@@ -43,6 +52,21 @@ function order(id: string, status: OrderStatus = 'CREATED'): Order {
     created_at: '2026-10-25T10:00:00Z',
     updated_at: null,
   }
+}
+
+// Метка времени шага `index` в истории фикстуры
+function stepTime(index: number): string {
+  return `2026-10-25T1${index}:00:00Z`
+}
+
+// Заказ со страницы заказа: история — пройденные шаги до `status` включительно
+function detail(id: string, status: OrderStatus = 'CREATED'): OrderDetail {
+  const reached = deliverySteps.indexOf(status)
+  const history: OrderStatusChange[] = deliverySteps
+    .slice(0, reached + 1)
+    .map((step, index) => ({ status: step, changed_at: stepTime(index) }))
+  if (status === 'CANCELLED') history.push({ status, changed_at: stepTime(1) })
+  return orderDetail(order(id, status), history)
 }
 
 function ordersPage(orders: Order[], nextPageToken = ''): OrdersPage {
@@ -198,26 +222,63 @@ describe('оформление из корзины', () => {
 })
 
 describe('OrderProgress', () => {
-  const steps: OrderStatus[] = ['CREATED', 'PAID', 'ASSEMBLING', 'HANDED_TO_COURIER', 'DELIVERED']
+  const history = (status: OrderStatus): OrderStatusChange[] => detail('o1', status).history
 
-  it.each(steps.map((status, index) => [status, index] as const))(
+  it.each(deliverySteps.map((status, index) => [status, index] as const))(
     '%s: пройденные, текущий и оставшиеся шаги',
     (status, index) => {
-      const wrapper = mount(OrderProgress, { props: { status } })
+      const wrapper = mount(OrderProgress, {
+        props: { status, steps: deliverySteps, history: history(status) },
+      })
 
       const states = wrapper.findAll('.step').map((li) => li.classes().at(-1))
       expect(states).toEqual(
-        steps.map((_, i) => (i < index ? 'done' : i === index ? 'current' : 'pending')),
+        deliverySteps.map((_, i) => (i < index ? 'done' : i === index ? 'current' : 'pending')),
       )
-      expect(wrapper.find('[aria-current=step]').text()).toBe(
+      expect(wrapper.find('[aria-current=step] .step-label').text()).toBe(
         ['Создан', 'Оплачен', 'Собирается', 'Передан курьеру', 'Доставлен'][index],
       )
       expect(wrapper.find('.order-cancelled').exists()).toBe(false)
     },
   )
 
+  it('рисует шаги из ответа бэка, а не из локальной константы', () => {
+    const steps: OrderStatus[] = ['CREATED', 'PAID', 'DELIVERED']
+    const wrapper = mount(OrderProgress, { props: { status: 'PAID', steps, history: [] } })
+
+    expect(wrapper.findAll('.step-label').map((label) => label.text())).toEqual([
+      'Создан',
+      'Оплачен',
+      'Доставлен',
+    ])
+    expect(wrapper.find('[aria-current=step] .step-label').text()).toBe('Оплачен')
+  })
+
+  it('показывает время пройденных шагов из history', () => {
+    const wrapper = mount(OrderProgress, {
+      props: { status: 'ASSEMBLING', steps: deliverySteps, history: history('ASSEMBLING') },
+    })
+
+    const times = wrapper.findAll('.step').map((li) => li.find('.step-time'))
+    expect(times.map((time) => time.exists())).toEqual([true, true, true, false, false])
+    expect(times[0]?.attributes('datetime')).toBe(stepTime(0))
+    expect(times[2]?.text()).toBe(formatDate(stepTime(2)))
+  })
+
+  it('пустая history — шаги без времени', () => {
+    const wrapper = mount(OrderProgress, {
+      props: { status: 'PAID', steps: deliverySteps, history: [] },
+    })
+
+    expect(wrapper.findAll('.step')).toHaveLength(5)
+    expect(wrapper.find('.step-time').exists()).toBe(false)
+    expect(wrapper.find('[aria-current=step] .step-label').text()).toBe('Оплачен')
+  })
+
   it('CANCELLED — отдельное состояние без шагов', () => {
-    const wrapper = mount(OrderProgress, { props: { status: 'CANCELLED' } })
+    const wrapper = mount(OrderProgress, {
+      props: { status: 'CANCELLED', steps: deliverySteps, history: history('CANCELLED') },
+    })
 
     expect(wrapper.find('.order-cancelled').text()).toBe('Заказ отменён')
     expect(wrapper.find('.order-progress').exists()).toBe(false)
@@ -312,7 +373,7 @@ describe('OrderPage', () => {
   })
 
   it('позиции, итог, даты и прогресс', async () => {
-    vi.mocked(api.getOrder).mockResolvedValue(order('o1', 'ASSEMBLING'))
+    vi.mocked(api.getOrder).mockResolvedValue(detail('o1', 'ASSEMBLING'))
     const { wrapper } = await mountApp('/orders/o1')
 
     expect(api.getOrder).toHaveBeenCalledWith('o1')
@@ -322,15 +383,35 @@ describe('OrderPage', () => {
     expect(wrapper.find('.updated-at').text()).toBe('—')
     expect(wrapper.find('.order-item').text()).toContain('Товар p1')
     expect(plain(wrapper.find('.total').text())).toBe('Итого: 200,00 ₽')
-    expect(wrapper.find('[aria-current=step]').text()).toBe('Собирается')
+    expect(wrapper.find('[aria-current=step] .step-label').text()).toBe('Собирается')
+    expect(wrapper.find('.delivered-note').exists()).toBe(false)
+  })
+
+  it('заказ без history рендерится', async () => {
+    vi.mocked(api.getOrder).mockResolvedValue(orderDetail(order('o1', 'PAID')))
+    const { wrapper } = await mountApp('/orders/o1')
+
+    expect(wrapper.find('.order-id').text()).toBe('o1')
+    expect(wrapper.findAll('.order-progress .step')).toHaveLength(5)
+    expect(wrapper.find('.step-time').exists()).toBe(false)
+    expect(wrapper.find('[aria-current=step] .step-label').text()).toBe('Оплачен')
+  })
+
+  it('после DELIVERED показывает заметку про письмо со ссылкой на /mail/', async () => {
+    vi.mocked(api.getOrder).mockResolvedValue(detail('o1', 'DELIVERED'))
+    const { wrapper } = await mountApp('/orders/o1')
+
+    const note = wrapper.find('.delivered-note')
+    expect(note.text()).toContain('Мы отправили письмо о доставке')
+    expect(note.find('a').attributes('href')).toBe('/mail/')
   })
 
   it('поллинг доводит до DELIVERED, переживает 503 и останавливается', async () => {
     vi.mocked(api.getOrder)
-      .mockResolvedValueOnce(order('o1', 'CREATED'))
+      .mockResolvedValueOnce(detail('o1', 'CREATED'))
       .mockRejectedValueOnce(unavailable())
-      .mockResolvedValueOnce(order('o1', 'HANDED_TO_COURIER'))
-      .mockResolvedValue(order('o1', 'DELIVERED'))
+      .mockResolvedValueOnce(detail('o1', 'HANDED_TO_COURIER'))
+      .mockResolvedValue(detail('o1', 'DELIVERED'))
     const { wrapper } = await mountApp('/orders/o1')
     expect(wrapper.find('.status').text()).toContain('Создан')
     expect(wrapper.find('.polling').exists()).toBe(true)
@@ -354,7 +435,7 @@ describe('OrderPage', () => {
   })
 
   it('CANCELLED останавливает поллинг', async () => {
-    vi.mocked(api.getOrder).mockResolvedValue(order('o1', 'CANCELLED'))
+    vi.mocked(api.getOrder).mockResolvedValue(detail('o1', 'CANCELLED'))
     const { wrapper } = await mountApp('/orders/o1')
 
     await vi.advanceTimersByTimeAsync(POLL_INTERVAL_MS * 3)
@@ -364,7 +445,7 @@ describe('OrderPage', () => {
   })
 
   it('уход со страницы останавливает поллинг', async () => {
-    vi.mocked(api.getOrder).mockResolvedValue(order('o1', 'PAID'))
+    vi.mocked(api.getOrder).mockResolvedValue(detail('o1', 'PAID'))
     vi.mocked(api.listOrders).mockResolvedValue(ordersPage([]))
     const { router } = await mountApp('/orders/o1')
     await vi.advanceTimersByTimeAsync(POLL_INTERVAL_MS)
@@ -378,7 +459,7 @@ describe('OrderPage', () => {
   })
 
   it('переход на другой заказ перезапускает поллинг', async () => {
-    vi.mocked(api.getOrder).mockImplementation((id) => Promise.resolve(order(id, 'PAID')))
+    vi.mocked(api.getOrder).mockImplementation((id) => Promise.resolve(detail(id, 'PAID')))
     const { wrapper, router } = await mountApp('/orders/o1')
 
     await router.push('/orders/o2')

@@ -130,6 +130,19 @@ export interface Order {
   updated_at: string | null
 }
 
+// Смена статуса из истории заказа; `changed_at` — ISO 8601 UTC
+export interface OrderStatusChange {
+  status: OrderStatus
+  changed_at: string
+}
+
+// Заказ со страницы заказа: история статусов и порядок шагов доставки от бэка.
+// У заказа, оформленного до появления истории, `history` пустая
+export interface OrderDetail extends Order {
+  history: OrderStatusChange[]
+  delivery_steps: OrderStatus[]
+}
+
 export interface OrdersPage {
   orders: Order[]
   next_page_token: string
