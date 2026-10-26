@@ -478,7 +478,7 @@ git commit -m "feat: support-service строит проекцию статус�
 
 `delivery_steps` отдаётся из `models.DELIVERY_STEPS` — единственный источник порядка. `Order` в `ListOrders` не меняется.
 
-- [ ] **Step 1: Написать падающие тесты**
+- [x] **Step 1: Написать падающие тесты**
 
 ```python
 async def test_get_order_returns_history_and_steps(...) -> None:
@@ -503,21 +503,21 @@ async def test_gateway_order_detail_shape(client) -> None:
     assert body["history"][0]["status"] == "CREATED"
 ```
 
-- [ ] **Step 2: Запустить тесты, убедиться, что падают**
+- [x] **Step 2: Запустить тесты, убедиться, что падают**
 
 Run: `uv run pytest services/orders/tests/test_orders.py services/gateway -v`
 Expected: FAIL — нет поля `history`.
 
-- [ ] **Step 3: `make gen` и реализация**
+- [x] **Step 3: `make gen` и реализация**
 
 Run: `make gen`, затем `convert.py`, хэндлер, gateway-схемы и роутер. `tests/contracts/test_protos.py` дополнить новым сообщением, если он перечисляет поля.
 
-- [ ] **Step 4: Запустить тесты и проверки**
+- [x] **Step 4: Запустить тесты и проверки**
 
 Run: `make test && make check`
 Expected: PASS.
 
-- [ ] **Step 5: Коммит**
+- [x] **Step 5: Коммит**
 
 ```bash
 git add protos pb services/orders services/gateway tests

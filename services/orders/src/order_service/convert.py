@@ -6,7 +6,7 @@ from common.v1 import money_pb2
 from google.protobuf.timestamp_pb2 import Timestamp
 from orders.v1 import orders_pb2
 
-from order_service.models import Order, OrderStatus
+from order_service.models import Order, OrderStatus, StatusChange
 
 CURRENCY = "RUB"
 NANOS_PER_KOPECK = 10_000_000
@@ -51,4 +51,10 @@ def order_pb(order: Order) -> orders_pb2.Order:
         total=money(order.total_kopecks),
         created_at=timestamp(order.created_at),
         updated_at=timestamp(order.updated_at),
+    )
+
+
+def status_change_pb(change: StatusChange) -> orders_pb2.OrderStatusChange:
+    return orders_pb2.OrderStatusChange(
+        status=STATUS_TO_PROTO[change.status], changed_at=timestamp(change.changed_at)
     )

@@ -184,6 +184,21 @@ def test_order_statuses() -> None:
     ]
 
 
+def test_get_order_response_history_and_steps() -> None:
+    pool = descriptor_pool.Default()
+    response = pool.FindMessageTypeByName("orders.v1.GetOrderResponse")
+    history = response.fields_by_name["history"]
+    assert history.is_repeated
+    assert _message_type_name(history) == "orders.v1.OrderStatusChange"
+    steps = response.fields_by_name["delivery_steps"]
+    assert steps.is_repeated
+    assert steps.enum_type is not None
+    assert steps.enum_type.full_name == "orders.v1.OrderStatus"
+    change = pool.FindMessageTypeByName("orders.v1.OrderStatusChange")
+    assert {f.name for f in change.fields} == {"status", "changed_at"}
+    assert _message_type_name(change.fields_by_name["changed_at"]) == "google.protobuf.Timestamp"
+
+
 def test_users_roles_and_field_mask() -> None:
     pool = descriptor_pool.Default()
     roles = pool.FindEnumTypeByName("users.v1.UserRole")

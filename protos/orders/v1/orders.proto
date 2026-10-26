@@ -100,8 +100,18 @@ message GetOrderRequest {
   string order_id = 1;
 }
 
+// Смена статуса заказа: статус и момент, когда заказ в него перешёл.
+message OrderStatusChange {
+  OrderStatus status = 1;
+  google.protobuf.Timestamp changed_at = 2;
+}
+
 message GetOrderResponse {
   Order order = 1;
+  // Смены статуса от старой к новой; у заказа, оформленного до истории статусов, — пусто.
+  repeated OrderStatusChange history = 2;
+  // Порядок шагов доставки от CREATED до DELIVERED; CANCELLED в него не входит.
+  repeated OrderStatus delivery_steps = 3;
 }
 
 message ListOrdersRequest {

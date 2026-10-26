@@ -1,3 +1,4 @@
+from datetime import UTC
 from unittest.mock import Mock
 
 import pytest
@@ -31,6 +32,38 @@ async def test_get_own_order(context: Mock, repository: FakeRepository) -> None:
     assert response.order.order_id == order.order_id
     assert response.order.status == orders_pb2.ORDER_STATUS_CREATED
     assert response.order.total.units == 100
+
+
+async def test_get_order_returns_history_and_steps(
+    context: Mock, repository: FakeRepository
+) -> None:
+    order = await repository.create_order("o-new", BUYER_ID, repository.add().items)
+
+    response = await get_order(
+        orders_pb2.GetOrderRequest(order_id=order.order_id), context, repository
+    )
+
+    assert [change.status for change in response.history] == [orders_pb2.ORDER_STATUS_CREATED]
+    assert response.history[0].changed_at.ToDatetime(tzinfo=UTC) == order.updated_at
+    assert list(response.delivery_steps) == [
+        orders_pb2.ORDER_STATUS_CREATED,
+        orders_pb2.ORDER_STATUS_PAID,
+        orders_pb2.ORDER_STATUS_ASSEMBLING,
+        orders_pb2.ORDER_STATUS_HANDED_TO_COURIER,
+        orders_pb2.ORDER_STATUS_DELIVERED,
+    ]
+
+
+async def test_get_order_without_history(context: Mock, repository: FakeRepository) -> None:
+    """Заказ, оформленный до истории статусов: history пустая, delivery_steps на месте."""
+    order = repository.add(status=OrderStatus.PAID)
+
+    response = await get_order(
+        orders_pb2.GetOrderRequest(order_id=order.order_id), context, repository
+    )
+
+    assert list(response.history) == []
+    assert len(response.delivery_steps) == 5
 
 
 @pytest.mark.parametrize("owner", [OTHER_ID, None])

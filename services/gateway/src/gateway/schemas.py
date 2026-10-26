@@ -131,6 +131,18 @@ class Order(BaseModel):
     updated_at: datetime | None
 
 
+class OrderStatusChange(BaseModel):
+    status: str
+    changed_at: datetime
+
+
+class OrderDetail(Order):
+    """Заказ со страницы заказа: история статусов и порядок шагов доставки от order-service."""
+
+    history: list[OrderStatusChange]
+    delivery_steps: list[str]
+
+
 class OrdersPage(BaseModel):
     orders: list[Order]
     next_page_token: str
@@ -236,6 +248,20 @@ def order(value: orders_pb2.Order) -> Order:
         total=money(value.total),
         created_at=timestamp(value.created_at, value.HasField("created_at")),
         updated_at=timestamp(value.updated_at, value.HasField("updated_at")),
+    )
+
+
+def order_detail(response: orders_pb2.GetOrderResponse) -> OrderDetail:
+    return OrderDetail(
+        **order(response.order).model_dump(),
+        history=[
+            OrderStatusChange(
+                status=order_status(change.status),
+                changed_at=change.changed_at.ToDatetime(tzinfo=UTC),
+            )
+            for change in response.history
+        ],
+        delivery_steps=[order_status(step) for step in response.delivery_steps],
     )
 
 

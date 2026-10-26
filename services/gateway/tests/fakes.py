@@ -202,7 +202,25 @@ class FakeOrders(OrdersClient):
 
     async def get_order(self, order_id: str) -> orders_pb2.GetOrderResponse:
         self.record("GetOrder", order_id)
-        return orders_pb2.GetOrderResponse(order=order(order_id))
+        return orders_pb2.GetOrderResponse(
+            order=order(order_id),
+            history=[
+                orders_pb2.OrderStatusChange(
+                    status=orders_pb2.ORDER_STATUS_CREATED, changed_at=CREATED_AT
+                ),
+                orders_pb2.OrderStatusChange(
+                    status=orders_pb2.ORDER_STATUS_PAID,
+                    changed_at=Timestamp(seconds=CREATED_AT.seconds + 60),
+                ),
+            ],
+            delivery_steps=[
+                orders_pb2.ORDER_STATUS_CREATED,
+                orders_pb2.ORDER_STATUS_PAID,
+                orders_pb2.ORDER_STATUS_ASSEMBLING,
+                orders_pb2.ORDER_STATUS_HANDED_TO_COURIER,
+                orders_pb2.ORDER_STATUS_DELIVERED,
+            ],
+        )
 
     async def list_orders(
         self, request: orders_pb2.ListOrdersRequest

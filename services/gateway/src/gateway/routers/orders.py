@@ -40,6 +40,5 @@ async def list_orders(
 
 
 @router.get("/orders/{order_id}")
-async def get_order(order_id: str, orders: OrdersClient) -> schemas.Order:
-    response = await orders.get_order(order_id)
-    return schemas.order(response.order)
+async def get_order(order_id: str, orders: OrdersClient) -> schemas.OrderDetail:
+    return schemas.order_detail(await orders.get_order(order_id))

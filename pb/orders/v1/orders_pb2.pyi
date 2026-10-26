@@ -345,20 +345,57 @@ class GetOrderRequest(_message.Message):
 Global___GetOrderRequest: _TypeAlias = GetOrderRequest  # noqa: Y015
 
 @_typing.final
+class OrderStatusChange(_message.Message):
+    """Смена статуса заказа: статус и момент, когда заказ в него перешёл."""
+
+    DESCRIPTOR: _descriptor.Descriptor
+
+    STATUS_FIELD_NUMBER: _builtins.int
+    CHANGED_AT_FIELD_NUMBER: _builtins.int
+    status: Global___OrderStatus.ValueType
+    @_builtins.property
+    def changed_at(self) -> _timestamp_pb2.Timestamp: ...
+    def __init__(
+        self,
+        *,
+        status: Global___OrderStatus.ValueType = ...,
+        changed_at: _timestamp_pb2.Timestamp | None = ...,
+    ) -> None: ...
+    _HasFieldArgType: _TypeAlias = _typing.Literal["changed_at", b"changed_at"]  # noqa: Y015
+    def HasField(self, field_name: _HasFieldArgType) -> _builtins.bool: ...
+    _ClearFieldArgType: _TypeAlias = _typing.Literal["changed_at", b"changed_at", "status", b"status"]  # noqa: Y015
+    def ClearField(self, field_name: _ClearFieldArgType) -> None: ...
+    def WhichOneof(self, oneof_group: _Never) -> None: ...
+
+Global___OrderStatusChange: _TypeAlias = OrderStatusChange  # noqa: Y015
+
+@_typing.final
 class GetOrderResponse(_message.Message):
     DESCRIPTOR: _descriptor.Descriptor
 
     ORDER_FIELD_NUMBER: _builtins.int
+    HISTORY_FIELD_NUMBER: _builtins.int
+    DELIVERY_STEPS_FIELD_NUMBER: _builtins.int
     @_builtins.property
     def order(self) -> Global___Order: ...
+    @_builtins.property
+    def history(self) -> _containers.RepeatedCompositeFieldContainer[Global___OrderStatusChange]:
+        """Смены статуса от старой к новой; у заказа, оформленного до истории статусов, — пусто."""
+
+    @_builtins.property
+    def delivery_steps(self) -> _containers.RepeatedScalarFieldContainer[Global___OrderStatus.ValueType]:
+        """Порядок шагов доставки от CREATED до DELIVERED; CANCELLED в него не входит."""
+
     def __init__(
         self,
         *,
         order: Global___Order | None = ...,
+        history: _abc.Iterable[Global___OrderStatusChange] | None = ...,
+        delivery_steps: _abc.Iterable[Global___OrderStatus.ValueType] | None = ...,
     ) -> None: ...
     _HasFieldArgType: _TypeAlias = _typing.Literal["order", b"order"]  # noqa: Y015
     def HasField(self, field_name: _HasFieldArgType) -> _builtins.bool: ...
-    _ClearFieldArgType: _TypeAlias = _typing.Literal["order", b"order"]  # noqa: Y015
+    _ClearFieldArgType: _TypeAlias = _typing.Literal["delivery_steps", b"delivery_steps", "history", b"history", "order", b"order"]  # noqa: Y015
     def ClearField(self, field_name: _ClearFieldArgType) -> None: ...
     def WhichOneof(self, oneof_group: _Never) -> None: ...
 

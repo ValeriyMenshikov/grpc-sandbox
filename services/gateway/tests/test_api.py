@@ -211,6 +211,20 @@ def test_get_order(http: TestClient, orders: FakeOrders) -> None:
     assert orders.record.last.args == ("o-9",)
 
 
+def test_get_order_detail_has_history_and_steps(http: TestClient, orders: FakeOrders) -> None:
+    body = http.get("/orders/o-9", headers=BEARER).json()
+
+    assert body["delivery_steps"] == [
+        "CREATED",
+        "PAID",
+        "ASSEMBLING",
+        "HANDED_TO_COURIER",
+        "DELIVERED",
+    ]
+    assert [change["status"] for change in body["history"]] == ["CREATED", "PAID"]
+    assert body["history"][0]["changed_at"] == "2026-01-01T00:00:00Z"
+
+
 def test_request_id_is_forwarded_and_returned(http: TestClient, orders: FakeOrders) -> None:
     response = http.get("/orders/o-1", headers={"X-Request-Id": "req-42"})
 

@@ -39,10 +39,17 @@ OTHER_ID = "u-other"
 class FakeRepository(OrderRepository):
     def __init__(self) -> None:
         self.orders: dict[str, Order] = {}
+        # История статусов; `add` её не пишет — так выглядит заказ, оформленный до неё
+        self.history: dict[str, list[StatusChange]] = {}
         self._clock = EPOCH
 
     async def connect(self) -> None:
         pass
+
+    def _record(self, order: Order) -> None:
+        self.history.setdefault(order.order_id, []).append(
+            StatusChange(order.order_id, order.status, order.updated_at)
+        )
 
     def tick(self) -> datetime:
         self._clock += timedelta(minutes=1)
@@ -65,10 +72,14 @@ class FakeRepository(OrderRepository):
         now = self.tick()
         order = Order(order_id, user_id, OrderStatus.CREATED, tuple(items), now, now, email)
         self.orders[order_id] = order
+        self._record(order)
         return order
 
     async def get_order(self, order_id: str) -> Order | None:
         return self.orders.get(order_id)
+
+    async def status_history(self, order_id: str) -> list[StatusChange]:
+        return list(self.history.get(order_id, []))
 
     async def list_orders(
         self, user_id: str, status: OrderStatus | None, offset: int, limit: int
@@ -87,6 +98,7 @@ class FakeRepository(OrderRepository):
             return None
         order = replace(order, status=OrderStatus.CANCELLED, updated_at=self.tick())
         self.orders[order_id] = order
+        self._record(order)
         return order
 
     async def advance_due(self, step: timedelta) -> list[OrderStatusEvent]:
@@ -98,6 +110,7 @@ class FakeRepository(OrderRepository):
                 continue
             order = replace(order, status=following, updated_at=self.tick())
             self.orders[order.order_id] = order
+            self._record(order)
             events.append(
                 OrderStatusEvent(
                     order.order_id, order.user_id, order.email, order.status, order.updated_at

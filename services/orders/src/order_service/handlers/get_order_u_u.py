@@ -2,8 +2,8 @@ from orders.v1 import orders_pb2
 from stand_core import Context, rpc
 from stand_core.grpc import FieldViolation, InvalidArgument, NotFound, current_user
 
-from order_service.convert import order_pb
-from order_service.models import Order
+from order_service.convert import STATUS_TO_PROTO, order_pb, status_change_pb
+from order_service.models import DELIVERY_STEPS, Order
 from order_service.repository import OrderRepository
 
 
@@ -23,6 +23,10 @@ async def get_order(
     context: Context,
     repository: OrderRepository,
 ) -> orders_pb2.GetOrderResponse:
+    order = await own_order(repository, request.order_id)
+    history = await repository.status_history(order.order_id)
     return orders_pb2.GetOrderResponse(
-        order=order_pb(await own_order(repository, request.order_id))
+        order=order_pb(order),
+        history=[status_change_pb(change) for change in history],
+        delivery_steps=[STATUS_TO_PROTO[step] for step in DELIVERY_STEPS],
     )

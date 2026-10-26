@@ -26,15 +26,15 @@ from common.v1 import money_pb2 as common_dot_v1_dot_money__pb2
 from google.protobuf import timestamp_pb2 as google_dot_protobuf_dot_timestamp__pb2
 
 
-DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\x16orders/v1/orders.proto\x12\torders.v1\x1a\x15\x63ommon/v1/money.proto\x1a\x1fgoogle/protobuf/timestamp.proto\"w\n\x08\x43\x61rtItem\x12\x12\n\nproduct_id\x18\x01 \x01(\t\x12\x0c\n\x04name\x18\x02 \x01(\t\x12\x10\n\x08quantity\x18\x03 \x01(\x03\x12$\n\nunit_price\x18\x04 \x01(\x0b\x32\x10.common.v1.Money\x12\x11\n\tavailable\x18\x05 \x01(\x03\"K\n\x04\x43\x61rt\x12\"\n\x05items\x18\x01 \x03(\x0b\x32\x13.orders.v1.CartItem\x12\x1f\n\x05total\x18\x02 \x01(\x0b\x32\x10.common.v1.Money\":\n\x12\x41\x64\x64\x43\x61rtItemRequest\x12\x12\n\nproduct_id\x18\x01 \x01(\t\x12\x10\n\x08quantity\x18\x02 \x01(\x03\"4\n\x13\x41\x64\x64\x43\x61rtItemResponse\x12\x1d\n\x04\x63\x61rt\x18\x01 \x01(\x0b\x32\x0f.orders.v1.Cart\"+\n\x15RemoveCartItemRequest\x12\x12\n\nproduct_id\x18\x01 \x01(\t\"7\n\x16RemoveCartItemResponse\x12\x1d\n\x04\x63\x61rt\x18\x01 \x01(\x0b\x32\x0f.orders.v1.Cart\"\x10\n\x0eGetCartRequest\"0\n\x0fGetCartResponse\x12\x1d\n\x04\x63\x61rt\x18\x01 \x01(\x0b\x32\x0f.orders.v1.Cart\"e\n\tOrderItem\x12\x12\n\nproduct_id\x18\x01 \x01(\t\x12\x0c\n\x04name\x18\x02 \x01(\t\x12\x10\n\x08quantity\x18\x03 \x01(\x03\x12$\n\nunit_price\x18\x04 \x01(\x0b\x32\x10.common.v1.Money\"\xf8\x01\n\x05Order\x12\x10\n\x08order_id\x18\x01 \x01(\t\x12\x0f\n\x07user_id\x18\x02 \x01(\t\x12&\n\x06status\x18\x03 \x01(\x0e\x32\x16.orders.v1.OrderStatus\x12#\n\x05items\x18\x04 \x03(\x0b\x32\x14.orders.v1.OrderItem\x12\x1f\n\x05total\x18\x05 \x01(\x0b\x32\x10.common.v1.Money\x12.\n\ncreated_at\x18\x06 \x01(\x0b\x32\x1a.google.protobuf.Timestamp\x12.\n\nupdated_at\x18\x07 \x01(\x0b\x32\x1a.google.protobuf.Timestamp\"\x11\n\x0f\x43heckoutRequest\"3\n\x10\x43heckoutResponse\x12\x1f\n\x05order\x18\x01 \x01(\x0b\x32\x10.orders.v1.Order\"#\n\x0fGetOrderRequest\x12\x10\n\x08order_id\x18\x01 \x01(\t\"3\n\x10GetOrderResponse\x12\x1f\n\x05order\x18\x01 \x01(\x0b\x32\x10.orders.v1.Order\"v\n\x11ListOrdersRequest\x12+\n\x06status\x18\x01 \x01(\x0e\x32\x16.orders.v1.OrderStatusH\x00\x88\x01\x01\x12)\n\npagination\x18\x02 \x01(\x0b\x32\x15.common.v1.PaginationB\t\n\x07_status\"O\n\x12ListOrdersResponse\x12 \n\x06orders\x18\x01 \x03(\x0b\x32\x10.orders.v1.Order\x12\x17\n\x0fnext_page_token\x18\x02 \x01(\t\"&\n\x12\x43\x61ncelOrderRequest\x12\x10\n\x08order_id\x18\x01 \x01(\t\"6\n\x13\x43\x61ncelOrderResponse\x12\x1f\n\x05order\x18\x01 \x01(\x0b\x32\x10.orders.v1.Order\"%\n\x11TrackOrderRequest\x12\x10\n\x08order_id\x18\x01 \x01(\t\"~\n\x12TrackOrderResponse\x12\x10\n\x08order_id\x18\x01 \x01(\t\x12&\n\x06status\x18\x02 \x01(\x0e\x32\x16.orders.v1.OrderStatus\x12.\n\nchanged_at\x18\x03 \x01(\x0b\x32\x1a.google.protobuf.Timestamp*\xd5\x01\n\x0bOrderStatus\x12\x1c\n\x18ORDER_STATUS_UNSPECIFIED\x10\x00\x12\x18\n\x14ORDER_STATUS_CREATED\x10\x01\x12\x15\n\x11ORDER_STATUS_PAID\x10\x02\x12\x1b\n\x17ORDER_STATUS_ASSEMBLING\x10\x03\x12\"\n\x1eORDER_STATUS_HANDED_TO_COURIER\x10\x04\x12\x1a\n\x16ORDER_STATUS_DELIVERED\x10\x05\x12\x1a\n\x16ORDER_STATUS_CANCELLED\x10\x06\x32\xe5\x04\n\x0cOrderService\x12L\n\x0b\x41\x64\x64\x43\x61rtItem\x12\x1d.orders.v1.AddCartItemRequest\x1a\x1e.orders.v1.AddCartItemResponse\x12U\n\x0eRemoveCartItem\x12 .orders.v1.RemoveCartItemRequest\x1a!.orders.v1.RemoveCartItemResponse\x12@\n\x07GetCart\x12\x19.orders.v1.GetCartRequest\x1a\x1a.orders.v1.GetCartResponse\x12\x43\n\x08\x43heckout\x12\x1a.orders.v1.CheckoutRequest\x1a\x1b.orders.v1.CheckoutResponse\x12\x43\n\x08GetOrder\x12\x1a.orders.v1.GetOrderRequest\x1a\x1b.orders.v1.GetOrderResponse\x12I\n\nListOrders\x12\x1c.orders.v1.ListOrdersRequest\x1a\x1d.orders.v1.ListOrdersResponse\x12L\n\x0b\x43\x61ncelOrder\x12\x1d.orders.v1.CancelOrderRequest\x1a\x1e.orders.v1.CancelOrderResponse\x12K\n\nTrackOrder\x12\x1c.orders.v1.TrackOrderRequest\x1a\x1d.orders.v1.TrackOrderResponse0\x01\x62\x06proto3')
+DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\x16orders/v1/orders.proto\x12\torders.v1\x1a\x15\x63ommon/v1/money.proto\x1a\x1fgoogle/protobuf/timestamp.proto\"w\n\x08\x43\x61rtItem\x12\x12\n\nproduct_id\x18\x01 \x01(\t\x12\x0c\n\x04name\x18\x02 \x01(\t\x12\x10\n\x08quantity\x18\x03 \x01(\x03\x12$\n\nunit_price\x18\x04 \x01(\x0b\x32\x10.common.v1.Money\x12\x11\n\tavailable\x18\x05 \x01(\x03\"K\n\x04\x43\x61rt\x12\"\n\x05items\x18\x01 \x03(\x0b\x32\x13.orders.v1.CartItem\x12\x1f\n\x05total\x18\x02 \x01(\x0b\x32\x10.common.v1.Money\":\n\x12\x41\x64\x64\x43\x61rtItemRequest\x12\x12\n\nproduct_id\x18\x01 \x01(\t\x12\x10\n\x08quantity\x18\x02 \x01(\x03\"4\n\x13\x41\x64\x64\x43\x61rtItemResponse\x12\x1d\n\x04\x63\x61rt\x18\x01 \x01(\x0b\x32\x0f.orders.v1.Cart\"+\n\x15RemoveCartItemRequest\x12\x12\n\nproduct_id\x18\x01 \x01(\t\"7\n\x16RemoveCartItemResponse\x12\x1d\n\x04\x63\x61rt\x18\x01 \x01(\x0b\x32\x0f.orders.v1.Cart\"\x10\n\x0eGetCartRequest\"0\n\x0fGetCartResponse\x12\x1d\n\x04\x63\x61rt\x18\x01 \x01(\x0b\x32\x0f.orders.v1.Cart\"e\n\tOrderItem\x12\x12\n\nproduct_id\x18\x01 \x01(\t\x12\x0c\n\x04name\x18\x02 \x01(\t\x12\x10\n\x08quantity\x18\x03 \x01(\x03\x12$\n\nunit_price\x18\x04 \x01(\x0b\x32\x10.common.v1.Money\"\xf8\x01\n\x05Order\x12\x10\n\x08order_id\x18\x01 \x01(\t\x12\x0f\n\x07user_id\x18\x02 \x01(\t\x12&\n\x06status\x18\x03 \x01(\x0e\x32\x16.orders.v1.OrderStatus\x12#\n\x05items\x18\x04 \x03(\x0b\x32\x14.orders.v1.OrderItem\x12\x1f\n\x05total\x18\x05 \x01(\x0b\x32\x10.common.v1.Money\x12.\n\ncreated_at\x18\x06 \x01(\x0b\x32\x1a.google.protobuf.Timestamp\x12.\n\nupdated_at\x18\x07 \x01(\x0b\x32\x1a.google.protobuf.Timestamp\"\x11\n\x0f\x43heckoutRequest\"3\n\x10\x43heckoutResponse\x12\x1f\n\x05order\x18\x01 \x01(\x0b\x32\x10.orders.v1.Order\"#\n\x0fGetOrderRequest\x12\x10\n\x08order_id\x18\x01 \x01(\t\"k\n\x11OrderStatusChange\x12&\n\x06status\x18\x01 \x01(\x0e\x32\x16.orders.v1.OrderStatus\x12.\n\nchanged_at\x18\x02 \x01(\x0b\x32\x1a.google.protobuf.Timestamp\"\x92\x01\n\x10GetOrderResponse\x12\x1f\n\x05order\x18\x01 \x01(\x0b\x32\x10.orders.v1.Order\x12-\n\x07history\x18\x02 \x03(\x0b\x32\x1c.orders.v1.OrderStatusChange\x12.\n\x0e\x64\x65livery_steps\x18\x03 \x03(\x0e\x32\x16.orders.v1.OrderStatus\"v\n\x11ListOrdersRequest\x12+\n\x06status\x18\x01 \x01(\x0e\x32\x16.orders.v1.OrderStatusH\x00\x88\x01\x01\x12)\n\npagination\x18\x02 \x01(\x0b\x32\x15.common.v1.PaginationB\t\n\x07_status\"O\n\x12ListOrdersResponse\x12 \n\x06orders\x18\x01 \x03(\x0b\x32\x10.orders.v1.Order\x12\x17\n\x0fnext_page_token\x18\x02 \x01(\t\"&\n\x12\x43\x61ncelOrderRequest\x12\x10\n\x08order_id\x18\x01 \x01(\t\"6\n\x13\x43\x61ncelOrderResponse\x12\x1f\n\x05order\x18\x01 \x01(\x0b\x32\x10.orders.v1.Order\"%\n\x11TrackOrderRequest\x12\x10\n\x08order_id\x18\x01 \x01(\t\"~\n\x12TrackOrderResponse\x12\x10\n\x08order_id\x18\x01 \x01(\t\x12&\n\x06status\x18\x02 \x01(\x0e\x32\x16.orders.v1.OrderStatus\x12.\n\nchanged_at\x18\x03 \x01(\x0b\x32\x1a.google.protobuf.Timestamp*\xd5\x01\n\x0bOrderStatus\x12\x1c\n\x18ORDER_STATUS_UNSPECIFIED\x10\x00\x12\x18\n\x14ORDER_STATUS_CREATED\x10\x01\x12\x15\n\x11ORDER_STATUS_PAID\x10\x02\x12\x1b\n\x17ORDER_STATUS_ASSEMBLING\x10\x03\x12\"\n\x1eORDER_STATUS_HANDED_TO_COURIER\x10\x04\x12\x1a\n\x16ORDER_STATUS_DELIVERED\x10\x05\x12\x1a\n\x16ORDER_STATUS_CANCELLED\x10\x06\x32\xe5\x04\n\x0cOrderService\x12L\n\x0b\x41\x64\x64\x43\x61rtItem\x12\x1d.orders.v1.AddCartItemRequest\x1a\x1e.orders.v1.AddCartItemResponse\x12U\n\x0eRemoveCartItem\x12 .orders.v1.RemoveCartItemRequest\x1a!.orders.v1.RemoveCartItemResponse\x12@\n\x07GetCart\x12\x19.orders.v1.GetCartRequest\x1a\x1a.orders.v1.GetCartResponse\x12\x43\n\x08\x43heckout\x12\x1a.orders.v1.CheckoutRequest\x1a\x1b.orders.v1.CheckoutResponse\x12\x43\n\x08GetOrder\x12\x1a.orders.v1.GetOrderRequest\x1a\x1b.orders.v1.GetOrderResponse\x12I\n\nListOrders\x12\x1c.orders.v1.ListOrdersRequest\x1a\x1d.orders.v1.ListOrdersResponse\x12L\n\x0b\x43\x61ncelOrder\x12\x1d.orders.v1.CancelOrderRequest\x1a\x1e.orders.v1.CancelOrderResponse\x12K\n\nTrackOrder\x12\x1c.orders.v1.TrackOrderRequest\x1a\x1d.orders.v1.TrackOrderResponse0\x01\x62\x06proto3')
 
 _globals = globals()
 _builder.BuildMessageAndEnumDescriptors(DESCRIPTOR, _globals)
 _builder.BuildTopDescriptorsAndMessages(DESCRIPTOR, 'orders.v1.orders_pb2', _globals)
 if not _descriptor._USE_C_DESCRIPTORS:
   DESCRIPTOR._loaded_options = None
-  _globals['_ORDERSTATUS']._serialized_start=1556
-  _globals['_ORDERSTATUS']._serialized_end=1769
+  _globals['_ORDERSTATUS']._serialized_start=1761
+  _globals['_ORDERSTATUS']._serialized_end=1974
   _globals['_CARTITEM']._serialized_start=93
   _globals['_CARTITEM']._serialized_end=212
   _globals['_CART']._serialized_start=214
@@ -61,20 +61,22 @@ if not _descriptor._USE_C_DESCRIPTORS:
   _globals['_CHECKOUTRESPONSE']._serialized_end=999
   _globals['_GETORDERREQUEST']._serialized_start=1001
   _globals['_GETORDERREQUEST']._serialized_end=1036
-  _globals['_GETORDERRESPONSE']._serialized_start=1038
-  _globals['_GETORDERRESPONSE']._serialized_end=1089
-  _globals['_LISTORDERSREQUEST']._serialized_start=1091
-  _globals['_LISTORDERSREQUEST']._serialized_end=1209
-  _globals['_LISTORDERSRESPONSE']._serialized_start=1211
-  _globals['_LISTORDERSRESPONSE']._serialized_end=1290
-  _globals['_CANCELORDERREQUEST']._serialized_start=1292
-  _globals['_CANCELORDERREQUEST']._serialized_end=1330
-  _globals['_CANCELORDERRESPONSE']._serialized_start=1332
-  _globals['_CANCELORDERRESPONSE']._serialized_end=1386
-  _globals['_TRACKORDERREQUEST']._serialized_start=1388
-  _globals['_TRACKORDERREQUEST']._serialized_end=1425
-  _globals['_TRACKORDERRESPONSE']._serialized_start=1427
-  _globals['_TRACKORDERRESPONSE']._serialized_end=1553
-  _globals['_ORDERSERVICE']._serialized_start=1772
-  _globals['_ORDERSERVICE']._serialized_end=2385
+  _globals['_ORDERSTATUSCHANGE']._serialized_start=1038
+  _globals['_ORDERSTATUSCHANGE']._serialized_end=1145
+  _globals['_GETORDERRESPONSE']._serialized_start=1148
+  _globals['_GETORDERRESPONSE']._serialized_end=1294
+  _globals['_LISTORDERSREQUEST']._serialized_start=1296
+  _globals['_LISTORDERSREQUEST']._serialized_end=1414
+  _globals['_LISTORDERSRESPONSE']._serialized_start=1416
+  _globals['_LISTORDERSRESPONSE']._serialized_end=1495
+  _globals['_CANCELORDERREQUEST']._serialized_start=1497
+  _globals['_CANCELORDERREQUEST']._serialized_end=1535
+  _globals['_CANCELORDERRESPONSE']._serialized_start=1537
+  _globals['_CANCELORDERRESPONSE']._serialized_end=1591
+  _globals['_TRACKORDERREQUEST']._serialized_start=1593
+  _globals['_TRACKORDERREQUEST']._serialized_end=1630
+  _globals['_TRACKORDERRESPONSE']._serialized_start=1632
+  _globals['_TRACKORDERRESPONSE']._serialized_end=1758
+  _globals['_ORDERSERVICE']._serialized_start=1977
+  _globals['_ORDERSERVICE']._serialized_end=2590
 # @@protoc_insertion_point(module_scope)
