@@ -280,7 +280,7 @@ git commit -m "feat: снимок email покупателя в заказе"
 
 Плоский routing key (дизайн §1): пока ни один потребитель не объявил очередь, `publish` падает из-за `on_return_raises=True` — это и есть причина, по которой публикация best-effort.
 
-- [ ] **Step 1: Написать падающие тесты**
+- [x] **Step 1: Написать падающие тесты**
 
 ```python
 async def test_publishes_order_status_changed(fake_rabbit: FakeRabbit) -> None:
@@ -301,21 +301,21 @@ async def test_fulfillment_publishes_each_change(...) -> None:
     assert [parse_order_status_changed(p).status for _, p in fake_rabbit.published] == ["PAID"]
 ```
 
-- [ ] **Step 2: Запустить тесты, убедиться, что падают**
+- [x] **Step 2: Запустить тесты, убедиться, что падают**
 
 Run: `uv run pytest services/orders/tests/test_events.py -v`
 Expected: FAIL — нет `DomainEvents`.
 
-- [ ] **Step 3: Реализовать `DomainEvents` и подключить к трём источникам**
+- [x] **Step 3: Реализовать `DomainEvents` и подключить к трём источникам**
 
 `Fulfillment` получает поле `_domain: DomainEvents`; `Checkout` и `CancelOrder` — параметр `domain: DomainEvents` после остальных клиентов. `request_id` в событие не передаём руками: `Rabbit.publish` сам ставит `correlation_id` из contextvars.
 
-- [ ] **Step 4: Запустить тесты и проверки**
+- [x] **Step 4: Запустить тесты и проверки**
 
 Run: `uv run pytest services/orders -v && make check`
 Expected: PASS.
 
-- [ ] **Step 5: Коммит**
+- [x] **Step 5: Коммит**
 
 ```bash
 git add services/orders

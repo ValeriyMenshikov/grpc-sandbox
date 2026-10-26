@@ -15,7 +15,7 @@ from order_service.repository import OrderRepository
 from order_service.stock_client import StockClient
 from order_service.users_client import UsersClient
 from orders.v1 import orders_pb2
-from stand_core.clients import Sessions
+from stand_core.clients import Rabbit, Sessions
 from stand_core.grpc import (
     CurrentUser,
     DependencyUnavailable,
@@ -41,7 +41,14 @@ from stand_core.settings import Settings
 from stand_core.testing import rich_status
 
 from .conftest import API_KEY
-from .fakes import BUYER_ID, FakeCarts, FakeIdempotency, FakeRepository, FakeUsers
+from .fakes import (
+    BUYER_ID,
+    FakeCarts,
+    FakeIdempotency,
+    FakeRabbit,
+    FakeRepository,
+    FakeUsers,
+)
 from .neighbour import Seen, fake_catalog
 
 # grpc округляет timeout вверх при передаче по сети: сосед видит чуть больше отправленного
@@ -239,6 +246,7 @@ async def orders_channel(
     container.mock(IdempotencyKeys, FakeIdempotency())
     container.mock(OrderRepository, repository)
     container.mock(UsersClient, FakeUsers())
+    container.mock(Rabbit, FakeRabbit())
     handlers = inject_handlers({CHECKOUT: annotate(checkout)}, container)
     interceptors = [
         RequestIdInterceptor(),

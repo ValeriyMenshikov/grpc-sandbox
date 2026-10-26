@@ -4,6 +4,7 @@ from datetime import UTC, timedelta
 from unittest.mock import Mock
 
 import pytest
+from order_service.domain_events import DomainEvents
 from order_service.fulfillment import Fulfillment
 from order_service.handlers import track_order_u_s
 from order_service.handlers.track_order_u_s import track_order
@@ -25,8 +26,10 @@ DELIVERY = [
 
 
 @pytest.fixture
-def fulfillment(repository: FakeRepository, events: FakeEvents) -> Fulfillment:
-    return Fulfillment(repository, events, OrderSettings())
+def fulfillment(
+    repository: FakeRepository, events: FakeEvents, domain: DomainEvents
+) -> Fulfillment:
+    return Fulfillment(repository, events, OrderSettings(), domain)
 
 
 def request(order_id: str) -> orders_pb2.TrackOrderRequest:

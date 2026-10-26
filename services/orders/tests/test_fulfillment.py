@@ -5,11 +5,13 @@ from collections.abc import Callable
 from datetime import timedelta
 
 import pytest
+from order_service.domain_events import DomainEvents
 from order_service.fulfillment import Fulfillment
 from order_service.models import OrderStatus, OrderStatusEvent
 from order_service.settings import OrderSettings
+from stand_core.events import ORDER_STATUS_CHANGED, parse_order_status_changed
 
-from .fakes import FakeEvents, FakeRepository
+from .fakes import FakeEvents, FakeRabbit, FakeRepository
 
 
 async def run_until(fulfillment: Fulfillment, done: Callable[[], bool]) -> None:
@@ -27,18 +29,24 @@ async def run_until(fulfillment: Fulfillment, done: Callable[[], bool]) -> None:
 
 @pytest.fixture
 def fulfillment(
-    repository: FakeRepository, events: FakeEvents, monkeypatch: pytest.MonkeyPatch
+    repository: FakeRepository,
+    events: FakeEvents,
+    domain: DomainEvents,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> Fulfillment:
     monkeypatch.setenv("FULFILLMENT_STEP_MS", "10")
-    return Fulfillment(repository, events, OrderSettings())
+    return Fulfillment(repository, events, OrderSettings(), domain)
 
 
 def test_step_and_poll_interval_from_settings(
-    fulfillment: Fulfillment, repository: FakeRepository, events: FakeEvents
+    fulfillment: Fulfillment, repository: FakeRepository, events: FakeEvents, domain: DomainEvents
 ) -> None:
     assert fulfillment.step == timedelta(milliseconds=10)
     assert fulfillment.poll_interval_s == 0.01
-    assert Fulfillment(repository, events, OrderSettings.model_construct()).poll_interval_s == 0.5
+    assert (
+        Fulfillment(repository, events, OrderSettings.model_construct(), domain).poll_interval_s
+        == 0.5
+    )
 
 
 async def test_advance_moves_active_orders_one_step_and_publishes(
@@ -58,6 +66,30 @@ async def test_advance_moves_active_orders_one_step_and_publishes(
     assert events.published == [change.change() for change in changes]
     assert repository.orders[cancelled.order_id] == cancelled
     assert repository.orders[delivered.order_id] == delivered
+
+
+async def test_fulfillment_publishes_each_change(
+    fulfillment: Fulfillment, repository: FakeRepository, rabbit: FakeRabbit
+) -> None:
+    order = repository.add(user_id="u-1")
+
+    [change] = await fulfillment.advance()
+
+    assert [routing_key for routing_key, _ in rabbit.published] == [ORDER_STATUS_CHANGED]
+    [event] = [parse_order_status_changed(payload) for _, payload in rabbit.published]
+    assert (event.order_id, event.user_id, event.status) == (order.order_id, "u-1", "PAID")
+    assert event.changed_at == change.changed_at
+
+
+async def test_broker_failure_keeps_redis_publication(
+    fulfillment: Fulfillment, repository: FakeRepository, events: FakeEvents, rabbit: FakeRabbit
+) -> None:
+    repository.add()
+    rabbit.error = ConnectionError("rabbitmq is down")
+
+    changes = await fulfillment.advance()
+
+    assert events.published == [change.change() for change in changes]
 
 
 async def test_run_walks_order_to_delivered(
@@ -106,10 +138,12 @@ class FlakyRepository(FakeRepository):
         return await super().advance_due(step)
 
 
-async def test_run_survives_failed_pass(fulfillment: Fulfillment, events: FakeEvents) -> None:
+async def test_run_survives_failed_pass(
+    fulfillment: Fulfillment, events: FakeEvents, domain: DomainEvents
+) -> None:
     repository = FlakyRepository()
     order = repository.add()
-    flaky = Fulfillment(repository, events, OrderSettings())
+    flaky = Fulfillment(repository, events, OrderSettings(), domain)
 
     await run_until(
         flaky, lambda: repository.orders[order.order_id].status is not OrderStatus.CREATED

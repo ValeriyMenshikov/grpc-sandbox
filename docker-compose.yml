@@ -155,6 +155,8 @@ services:
       IDEMPOTENCY_TTL_S: ${IDEMPOTENCY_TTL_S:-86400}
       FULFILLMENT_STEP_MS: ${FULFILLMENT_STEP_MS:-2000}
       USERS_EMAIL_TIMEOUT_S: ${USERS_EMAIL_TIMEOUT_S:-2}
+      RABBITMQ_URL: ${RABBITMQ_URL:-amqp://stand:stand@rabbitmq:5672/}
+      EVENTS_EXCHANGE: ${EVENTS_EXCHANGE:-stand.events}
     ports:
       - "${ORDERS_PORT:-50053}:50053"
     depends_on:
@@ -170,6 +172,9 @@ services:
       # Только порядок старта: users нужен лишь для снимка email в заказе, без него Checkout
       # оформляет заказ с пустым email
       users:
+        condition: service_healthy
+      # Только порядок старта: без брокера статусы меняются, но order.status_changed не публикуется
+      rabbitmq:
         condition: service_healthy
     healthcheck: *grpc-healthcheck
 

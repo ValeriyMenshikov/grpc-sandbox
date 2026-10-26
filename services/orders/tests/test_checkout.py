@@ -4,11 +4,13 @@ from unittest.mock import Mock
 
 import grpc
 import pytest
+from order_service.domain_events import DomainEvents
 from order_service.handlers.checkout_u_u import checkout
 from order_service.idempotency import IdempotencyRecord
 from order_service.models import OrderStatus
 from order_service.settings import OrderSettings
 from orders.v1 import orders_pb2
+from stand_core.events import ORDER_STATUS_CHANGED, parse_order_status_changed
 from stand_core.grpc import DependencyUnavailable, FailedPrecondition, InvalidArgument
 
 from .conftest import IDEMPOTENCY_TTL_S
@@ -17,6 +19,7 @@ from .fakes import (
     FakeCarts,
     FakeCatalog,
     FakeIdempotency,
+    FakeRabbit,
     FakeRepository,
     FakeStock,
     FakeUsers,
@@ -39,7 +42,9 @@ class Checkout:
         users: FakeUsers | None = None,
     ) -> None:
         self.users = FakeUsers() if users is None else users
-        self.args = (carts, idempotency, repository, stock, catalog, self.users, settings)
+        self.rabbit = FakeRabbit()
+        domain = DomainEvents(_rabbit=self.rabbit)
+        self.args = (carts, idempotency, repository, stock, catalog, self.users, settings, domain)
 
     async def __call__(self, key: str | None = "key-1") -> orders_pb2.CheckoutResponse:
         context = Mock()
@@ -87,6 +92,31 @@ async def test_creates_order_reserves_stock_and_clears_cart(
     assert idempotency.ttls[BUYER_ID, "key-1"] == IDEMPOTENCY_TTL_S
 
 
+async def test_checkout_publishes_created(call: Checkout, repository: FakeRepository) -> None:
+    response = await call()
+
+    [(routing_key, payload)] = call.rabbit.published
+    event = parse_order_status_changed(payload)
+    order = repository.orders[response.order.order_id]
+    assert routing_key == ORDER_STATUS_CHANGED
+    assert (event.order_id, event.user_id, event.email, event.status, event.changed_at) == (
+        order.order_id,
+        BUYER_ID,
+        "buyer@example.com",
+        "CREATED",
+        order.created_at,
+    )
+
+
+async def test_checkout_survives_broker_failure(call: Checkout, repository: FakeRepository) -> None:
+    call.rabbit.error = ConnectionError("rabbitmq is down")
+
+    response = await call()
+
+    assert repository.orders[response.order.order_id].status is OrderStatus.CREATED
+    assert call.rabbit.published == []
+
+
 async def test_same_key_returns_same_order_without_new_reserve(
     call: Checkout, carts: FakeCarts, repository: FakeRepository, stock: FakeStock
 ) -> None:
@@ -97,6 +127,7 @@ async def test_same_key_returns_same_order_without_new_reserve(
 
     assert second.order.order_id == first.order.order_id
     assert len(stock.reserve_calls) == 1
+    assert len(call.rabbit.published) == 1
     assert len(repository.orders) == 1
     assert carts.carts[BUYER_ID] == {"p-1": 1}
 
@@ -419,7 +450,7 @@ async def test_checkout_without_email_when_users_is_slow(
     call: Checkout, users: FakeUsers, repository: FakeRepository, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     monkeypatch.setenv("USERS_EMAIL_TIMEOUT_S", "0.01")
-    call.args = (*call.args[:-1], OrderSettings())
+    call.args = (*call.args[:6], OrderSettings(), *call.args[7:])
     users.delay_s = 1.0
 
     response = await call()
@@ -439,7 +470,7 @@ async def test_checkout_does_not_reserve_before_users_call(
             return await super().email()
 
     ordered = OrderedUsers(error=DependencyUnavailable("users"))
-    call.args = (*call.args[:5], ordered, call.args[6])
+    call.args = (*call.args[:5], ordered, *call.args[6:])
 
     await call()
 

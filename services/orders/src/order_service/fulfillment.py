@@ -6,6 +6,7 @@ from datetime import timedelta
 from nuke_di import Client, client_dataclass
 from stand_core.logging import get_logger
 
+from order_service.domain_events import DomainEvents
 from order_service.events import OrderEvents
 from order_service.models import OrderStatusEvent
 from order_service.repository import OrderRepository
@@ -22,12 +23,14 @@ class Fulfillment(Client):
     """Фоновая задача внутри order-service: раз в шаг двигает каждый заказ на статус вперёд.
 
     Состояние — только в Postgres (статус и updated_at), поэтому рестарт сервиса продолжает
-    доставку с того же места. Каждая смена пишется в Postgres и публикуется в Redis.
+    доставку с того же места. Каждая смена пишется в Postgres и публикуется в Redis
+    (для TrackOrder) и в RabbitMQ (доменное событие `order.status_changed`).
     """
 
     _repository: OrderRepository
     _events: OrderEvents
     _settings: OrderSettings
+    _domain: DomainEvents
 
     @property
     def step(self) -> timedelta:
@@ -43,6 +46,7 @@ class Fulfillment(Client):
         for event in events:
             logger.info("orders.status_changed", order_id=event.order_id, status=event.status.value)
             await self._events.publish_quietly(event.change())
+            await self._domain.publish_quietly(event)
         return events
 
     async def run(self) -> None:

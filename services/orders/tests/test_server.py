@@ -10,6 +10,7 @@ from nuke_di import Dependencies
 from order_service.auth import AUTH_POLICIES
 from order_service.carts import Carts
 from order_service.catalog_client import CatalogClient
+from order_service.domain_events import DomainEvents
 from order_service.events import OrderEvents
 from order_service.fulfillment import Fulfillment
 from order_service.idempotency import IdempotencyKeys
@@ -20,7 +21,8 @@ from order_service.stock_client import StockClient
 from order_service.users_client import UsersClient
 from orders.v1 import orders_pb2
 from orders.v1 import orders_pb2_grpc as orders_grpc
-from stand_core.clients import Sessions
+from stand_core.clients import Rabbit, Sessions
+from stand_core.events import parse_order_status_changed
 from stand_core.grpc import GRPC_HANDLERS, CurrentUser, DependencyUnavailable, Role, inject_handlers
 from stand_core.grpc.interceptors import AUTH_POLICIES as REGISTERED_POLICIES
 from stand_core.grpc.interceptors import (
@@ -43,6 +45,7 @@ from .fakes import (
     FakeCatalog,
     FakeEvents,
     FakeIdempotency,
+    FakeRabbit,
     FakeRepository,
     FakeStock,
     FakeUsers,
@@ -83,6 +86,7 @@ async def stub(
     catalog: FakeCatalog,
     events: FakeEvents,
     users: FakeUsers,
+    rabbit: FakeRabbit,
     policies: None,
 ) -> AsyncIterator["orders_grpc.OrderServiceAsyncStub"]:
     container = Dependencies()
@@ -90,6 +94,7 @@ async def stub(
     container.mock(Carts, carts)
     container.mock(IdempotencyKeys, idempotency)
     container.mock(OrderEvents, events)
+    container.mock(Rabbit, rabbit)
     sessions = FakeSessions()
     interceptors = [
         RequestIdInterceptor(),
@@ -115,7 +120,7 @@ async def stub(
 
 
 async def test_cart_checkout_get_list_and_cancel(
-    stub: "orders_grpc.OrderServiceAsyncStub", stock: FakeStock
+    stub: "orders_grpc.OrderServiceAsyncStub", stock: FakeStock, rabbit: FakeRabbit
 ) -> None:
     await stub.AddCartItem(
         orders_pb2.AddCartItemRequest(product_id="p-1", quantity=2), metadata=BUYER
@@ -140,6 +145,11 @@ async def test_cart_checkout_get_list_and_cancel(
     assert stock.released == [order_id]
     assert stock.available["p-1"] == 10
     assert list(empty_cart.cart.items) == []
+    # Повтор по ключу не публикует CREATED второй раз
+    assert [parse_order_status_changed(payload).status for _, payload in rabbit.published] == [
+        "CREATED",
+        "CANCELLED",
+    ]
 
 
 async def test_checkout_without_key_is_invalid_argument(
@@ -220,10 +230,13 @@ async def test_without_token_is_unauthenticated(stub: "orders_grpc.OrderServiceA
 
 
 async def test_track_order_streams_until_delivered_with_items_count(
-    stub: "orders_grpc.OrderServiceAsyncStub", repository: FakeRepository, events: FakeEvents
+    stub: "orders_grpc.OrderServiceAsyncStub",
+    repository: FakeRepository,
+    events: FakeEvents,
+    domain: DomainEvents,
 ) -> None:
     order = repository.add()
-    fulfillment = Fulfillment(repository, events, OrderSettings())
+    fulfillment = Fulfillment(repository, events, OrderSettings(), domain)
     call = stub.TrackOrder(orders_pb2.TrackOrderRequest(order_id=order.order_id), metadata=BUYER)
 
     first = await call.read()

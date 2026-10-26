@@ -2,11 +2,13 @@ from unittest.mock import Mock
 
 import pytest
 from common.v1 import money_pb2
+from order_service.domain_events import DomainEvents
 from order_service.handlers.cancel_order_u_u import cancel_order
 from order_service.handlers.get_order_u_u import get_order
 from order_service.handlers.list_orders_u_u import list_orders
 from order_service.models import OrderStatus
 from orders.v1 import orders_pb2
+from stand_core.events import ORDER_STATUS_CHANGED, parse_order_status_changed
 from stand_core.grpc import (
     DependencyUnavailable,
     FailedPrecondition,
@@ -14,7 +16,7 @@ from stand_core.grpc import (
     NotFound,
 )
 
-from .fakes import OTHER_ID, FakeEvents, FakeRepository, FakeStock
+from .fakes import BUYER_ID, OTHER_ID, FakeEvents, FakeRabbit, FakeRepository, FakeStock
 
 pytestmark = pytest.mark.usefixtures("buyer")
 
@@ -110,12 +112,19 @@ async def test_cancel_before_courier_releases_stock(
     repository: FakeRepository,
     stock: FakeStock,
     events: FakeEvents,
+    domain: DomainEvents,
+    rabbit: FakeRabbit,
     status: OrderStatus,
 ) -> None:
     order = repository.add(status=status)
 
     response = await cancel_order(
-        orders_pb2.CancelOrderRequest(order_id=order.order_id), context, repository, stock, events
+        orders_pb2.CancelOrderRequest(order_id=order.order_id),
+        context,
+        repository,
+        stock,
+        events,
+        domain,
     )
 
     assert response.order.status == orders_pb2.ORDER_STATUS_CANCELLED
@@ -125,6 +134,12 @@ async def test_cancel_before_courier_releases_stock(
     [published] = events.published
     assert (published.order_id, published.status) == (order.order_id, OrderStatus.CANCELLED)
     assert published.changed_at == repository.orders[order.order_id].updated_at
+    # Доменное событие order.status_changed — в RabbitMQ
+    [(routing_key, payload)] = rabbit.published
+    event = parse_order_status_changed(payload)
+    assert routing_key == ORDER_STATUS_CHANGED
+    assert (event.order_id, event.user_id, event.status) == (order.order_id, BUYER_ID, "CANCELLED")
+    assert event.changed_at == published.changed_at
 
 
 @pytest.mark.parametrize("status", [OrderStatus.HANDED_TO_COURIER, OrderStatus.DELIVERED])
@@ -133,6 +148,8 @@ async def test_cancel_after_courier_is_failed_precondition(
     repository: FakeRepository,
     stock: FakeStock,
     events: FakeEvents,
+    domain: DomainEvents,
+    rabbit: FakeRabbit,
     status: OrderStatus,
 ) -> None:
     order = repository.add(status=status)
@@ -144,6 +161,7 @@ async def test_cancel_after_courier_is_failed_precondition(
             repository,
             stock,
             events,
+            domain,
         )
 
     [violation] = info.value.violations
@@ -155,10 +173,15 @@ async def test_cancel_after_courier_is_failed_precondition(
     assert repository.orders[order.order_id].status is status
     assert stock.released == []
     assert events.published == []
+    assert rabbit.published == []
 
 
 async def test_cancel_foreign_order_is_not_found(
-    context: Mock, repository: FakeRepository, stock: FakeStock, events: FakeEvents
+    context: Mock,
+    repository: FakeRepository,
+    stock: FakeStock,
+    events: FakeEvents,
+    domain: DomainEvents,
 ) -> None:
     order = repository.add(user_id=OTHER_ID)
 
@@ -169,21 +192,26 @@ async def test_cancel_foreign_order_is_not_found(
             repository,
             stock,
             events,
+            domain,
         )
     assert repository.orders[order.order_id].status is OrderStatus.CREATED
 
 
 async def test_repeat_cancel_finishes_release_after_catalog_outage(
-    context: Mock, repository: FakeRepository, stock: FakeStock, events: FakeEvents
+    context: Mock,
+    repository: FakeRepository,
+    stock: FakeStock,
+    events: FakeEvents,
+    domain: DomainEvents,
 ) -> None:
     order = repository.add()
     request = orders_pb2.CancelOrderRequest(order_id=order.order_id)
     stock.error = DependencyUnavailable("catalog")
     with pytest.raises(DependencyUnavailable):
-        await cancel_order(request, context, repository, stock, events)
+        await cancel_order(request, context, repository, stock, events, domain)
     stock.error = None
 
-    response = await cancel_order(request, context, repository, stock, events)
+    response = await cancel_order(request, context, repository, stock, events, domain)
 
     assert response.order.status == orders_pb2.ORDER_STATUS_CANCELLED
     assert stock.released == [order.order_id]

@@ -18,8 +18,9 @@ from stand_core.logging import get_logger
 from order_service.carts import Carts
 from order_service.catalog_client import CatalogClient
 from order_service.convert import order_pb
+from order_service.domain_events import DomainEvents
 from order_service.idempotency import IdempotencyKeys, IdempotencyRecord
-from order_service.models import Order, OrderItem
+from order_service.models import Order, OrderItem, OrderStatusEvent
 from order_service.repository import OrderRepository
 from order_service.settings import OrderSettings
 from order_service.stock_client import StockClient
@@ -148,6 +149,7 @@ async def checkout(
     catalog: CatalogClient,
     users: UsersClient,
     settings: OrderSettings,
+    domain: DomainEvents,
 ) -> orders_pb2.CheckoutResponse:
     key = idempotency_key(context)
     user_id = current_user().id
@@ -181,5 +183,9 @@ async def checkout(
     # shield: отмена вызова (ушёл клиент, истёк deadline) не должна оставить ключ pending
     await asyncio.shield(
         finalize(user_id, key, order.order_id, idempotency, carts, settings.idempotency_ttl_s)
+    )
+    # Повтор по ключу идемпотентности выходит раньше: CREATED публикуется один раз
+    await domain.publish_quietly(
+        OrderStatusEvent(order.order_id, user_id, order.email, order.status, order.created_at)
     )
     return orders_pb2.CheckoutResponse(order=order_pb(order))

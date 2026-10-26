@@ -2,6 +2,7 @@ from collections.abc import Iterator
 from unittest.mock import Mock
 
 import pytest
+from order_service.domain_events import DomainEvents
 from order_service.settings import OrderSettings
 from stand_core.grpc.context import CurrentUser, Role, reset_current_user, set_current_user
 
@@ -11,6 +12,7 @@ from .fakes import (
     FakeCatalog,
     FakeEvents,
     FakeIdempotency,
+    FakeRabbit,
     FakeRepository,
     FakeStock,
     FakeUsers,
@@ -45,6 +47,16 @@ def idempotency() -> FakeIdempotency:
 @pytest.fixture
 def events() -> FakeEvents:
     return FakeEvents()
+
+
+@pytest.fixture
+def rabbit() -> FakeRabbit:
+    return FakeRabbit()
+
+
+@pytest.fixture
+def domain(rabbit: FakeRabbit) -> DomainEvents:
+    return DomainEvents(_rabbit=rabbit)
 
 
 @pytest.fixture

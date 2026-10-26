@@ -1,10 +1,11 @@
-"""Репозиторий, Redis-хранилища и клиенты к catalog и users в памяти для unit-тестов."""
+"""Репозиторий, Redis-хранилища, RabbitMQ и клиенты к catalog и users в памяти для unit-тестов."""
 
 import asyncio
 from collections.abc import AsyncIterator, Awaitable, Callable, Iterable, Mapping, Sequence
 from contextlib import asynccontextmanager
 from dataclasses import replace
 from datetime import UTC, datetime, timedelta
+from typing import Any
 
 import grpc
 from catalog.v1 import catalog_pb2
@@ -25,6 +26,7 @@ from order_service.models import (
 from order_service.repository import OrderRepository
 from order_service.stock_client import StockClient
 from order_service.users_client import GET_ME, UsersClient
+from stand_core.clients import Rabbit
 from stand_core.clients.grpc_client import ResponseT
 from stand_core.grpc import DependencyUnavailable, FailedPrecondition, PreconditionViolation
 from users.v1 import users_pb2
@@ -285,3 +287,16 @@ class FakeEvents(OrderEvents):
             yield FakeSubscription(queue)
         finally:
             self.subscribers[order_id].remove(queue)
+
+
+class FakeRabbit(Rabbit):
+    """Запоминает опубликованные события; `error` — исключение, которым падает публикация."""
+
+    def __init__(self) -> None:
+        self.published: list[tuple[str, dict[str, Any]]] = []
+        self.error: Exception | None = None
+
+    async def publish(self, routing_key: str, payload: Mapping[str, Any]) -> None:
+        if self.error is not None:
+            raise self.error
+        self.published.append((routing_key, dict(payload)))

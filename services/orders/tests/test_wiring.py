@@ -1,4 +1,4 @@
-"""Дерево клиентов order-service собирается из настоящего main.py (без Postgres, Redis, соседей)."""
+"""Дерево клиентов order-service собирается из main.py (без Postgres, Redis, RabbitMQ, соседей)."""
 
 import json
 import os
@@ -11,13 +11,14 @@ from nuke_di import Dependencies
 from order_service.auth import AUTH_POLICIES
 from order_service.carts import Carts
 from order_service.catalog_client import CatalogClient
+from order_service.domain_events import DomainEvents
 from order_service.events import OrderEvents
 from order_service.idempotency import IdempotencyKeys
 from order_service.repository import OrderRepository
 from order_service.settings import OrderSettings
 from order_service.stock_client import StockClient
 from order_service.users_client import UsersClient
-from stand_core.clients import Postgres, Redis
+from stand_core.clients import Postgres, Rabbit, Redis
 from stand_core.grpc import GRPC_HANDLERS, AuthPolicy, inject_handlers
 
 # main.py импортируется не как __main__, поэтому @worker не стартует; проверяем, что получилось
@@ -57,6 +58,8 @@ def test_main_builds_client_tree() -> None:
         "Carts",
         "IdempotencyKeys",
         "OrderEvents",
+        "DomainEvents",
+        "Rabbit",
         "StockClient",
         "CatalogClient",
         "UsersClient",
@@ -87,6 +90,8 @@ def test_handlers_inject_clients() -> None:
         Carts,
         IdempotencyKeys,
         OrderEvents,
+        DomainEvents,
+        Rabbit,
         StockClient,
         CatalogClient,
         UsersClient,
