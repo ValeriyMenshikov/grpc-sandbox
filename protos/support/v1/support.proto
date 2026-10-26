@@ -5,7 +5,7 @@ package support.v1;
 import "common/v1/money.proto";
 import "google/protobuf/timestamp.proto";
 
-// Чат покупателя с поддержкой по заказу. Порт 50054. Все методы — Auth: user.
+// Чат покупателя с поддержкой по заказу. Порт 50054. Chat и GetChatHistory — Auth: user.
 service SupportService {
   // Bidi stream. Первым входящим — join, иначе FAILED_PRECONDITION. Потоки независимы:
   // сервер пишет сам (agent_typing, приветствие оператора), не дожидаясь клиента.
@@ -13,6 +13,10 @@ service SupportService {
   rpc Chat(stream ChatRequest) returns (stream ChatResponse);
   // История чата по заказу, пагинация.
   rpc GetChatHistory(GetChatHistoryRequest) returns (GetChatHistoryResponse);
+  // Auth: service. Проекция смен статуса заказа из событий order.status_changed, старые первыми.
+  // Eventual consistency: отстаёт от order-service, пока консьюмер не дочитал очередь;
+  // неизвестный заказ — пустой список, не NOT_FOUND.
+  rpc GetOrderTimeline(GetOrderTimelineRequest) returns (GetOrderTimelineResponse);
 }
 
 enum Author {
@@ -83,4 +87,30 @@ message GetChatHistoryResponse {
   string chat_id = 1;
   repeated ChatMessage messages = 2;
   string next_page_token = 3;
+}
+
+// Статусы заказа, которые знает проекция (как orders.v1.OrderStatus). Своя копия, а не импорт:
+// support получает статус строкой из события и не зависит от контракта orders.
+enum OrderStatus {
+  ORDER_STATUS_UNSPECIFIED = 0;
+  ORDER_STATUS_CREATED = 1;
+  ORDER_STATUS_PAID = 2;
+  ORDER_STATUS_ASSEMBLING = 3;
+  ORDER_STATUS_HANDED_TO_COURIER = 4;
+  ORDER_STATUS_DELIVERED = 5;
+  ORDER_STATUS_CANCELLED = 6;
+}
+
+message OrderEvent {
+  OrderStatus status = 1;
+  // Когда order-service сменил статус (из события), а не когда событие дошло до support
+  google.protobuf.Timestamp changed_at = 2;
+}
+
+message GetOrderTimelineRequest {
+  string order_id = 1;
+}
+
+message GetOrderTimelineResponse {
+  repeated OrderEvent events = 1;
 }

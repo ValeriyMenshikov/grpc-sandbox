@@ -71,6 +71,7 @@ EXPECTED_SERVICES: dict[str, dict[str, tuple[bool, bool]]] = {
     "support.v1.SupportService": {
         "Chat": BIDI,
         "GetChatHistory": UNARY,
+        "GetOrderTimeline": UNARY,
     },
     "notifications.v1.NotificationService": {
         "ListNotifications": UNARY,

@@ -1,7 +1,8 @@
-"""Chat и GetChatHistory через настоящий bidi-вызов; OrdersClient подменён через DI."""
+"""Chat, GetChatHistory и GetOrderTimeline на in-process сервере; OrdersClient подменён через DI."""
 
 import asyncio
 from collections.abc import AsyncIterator
+from datetime import UTC, datetime
 
 import grpc
 import pytest
@@ -11,13 +12,18 @@ from stand_core.testing import rich_status
 from support.v1 import support_pb2
 from support.v1 import support_pb2_grpc as support_grpc
 from support_service.bot import GREETING, STATUS_UNAVAILABLE
+from support_service.models import OrderEvent
+from support_service.order_status_consumer import OrderStatusConsumer
+from support_service.settings import SupportSettings
 
 from .conftest import API_KEY
-from .fakes import FakeOrders, FakeRepository
+from .fakes import FakeOrders, FakeRepository, fake_rabbit
 from .harness import BUYER, running_support
 
 # SupportServiceAsyncStub есть только в .pyi, поэтому аннотации с ним — строкой
 WAIT_S = 2.0
+
+SERVICE = (("x-api-key", API_KEY),)
 
 ChatCall = grpc.aio.StreamStreamCall[support_pb2.ChatRequest, support_pb2.ChatResponse]
 
@@ -170,3 +176,51 @@ async def test_history_of_unknown_chat_is_not_found(
         await stub.GetChatHistory(support_pb2.GetChatHistoryRequest(order_id="o-1"), metadata=BUYER)
 
     assert info.value.code() is grpc.StatusCode.NOT_FOUND
+
+
+async def test_order_timeline_by_service_key(
+    stub: "support_grpc.SupportServiceAsyncStub", repository: FakeRepository
+) -> None:
+    changed_at = datetime(2026, 10, 26, 12, 0, tzinfo=UTC)
+    await repository.record_order_event(OrderEvent("o-1", "PAID", changed_at))
+
+    response = await stub.GetOrderTimeline(
+        support_pb2.GetOrderTimelineRequest(order_id="o-1"), metadata=SERVICE
+    )
+
+    [event] = response.events
+    assert event.status == support_pb2.ORDER_STATUS_PAID
+    assert event.changed_at.ToDatetime(tzinfo=UTC) == changed_at
+
+
+async def test_order_timeline_without_api_key_is_unauthenticated(
+    stub: "support_grpc.SupportServiceAsyncStub",
+) -> None:
+    with pytest.raises(grpc.aio.AioRpcError) as info:
+        await stub.GetOrderTimeline(support_pb2.GetOrderTimelineRequest(order_id="o-1"))
+
+    assert info.value.code() is grpc.StatusCode.UNAUTHENTICATED
+
+
+@pytest.mark.usefixtures("fast_reconnect")
+async def test_chat_works_without_broker(
+    stub: "support_grpc.SupportServiceAsyncStub", repository: FakeRepository
+) -> None:
+    """support обслуживает Chat, пока Rabbit.open() бросает, а консьюмер переподключается."""
+    rabbit = fake_rabbit(open_errors=1_000)
+    consumer = asyncio.create_task(OrderStatusConsumer(rabbit, repository, SupportSettings()).run())
+    try:
+        call = stub.Chat(metadata=BUYER)
+        await call.write(join("o-1"))
+        joined = await read(call)
+        await call.done_writing()
+        await read_until_end(call)
+
+        assert kind(joined) == "joined"
+        assert await call.code() is grpc.StatusCode.OK
+        assert rabbit.open.await_count >= 1
+        assert not consumer.done()
+    finally:
+        consumer.cancel()
+        with pytest.raises(asyncio.CancelledError):
+            await consumer

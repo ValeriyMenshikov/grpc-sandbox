@@ -27,7 +27,7 @@ GRPC_GENERATED_VERSION: str
 GRPC_VERSION: str
 
 class SupportServiceStub:
-    """Чат покупателя с поддержкой по заказу. Порт 50054. Все методы — Auth: user."""
+    """Чат покупателя с поддержкой по заказу. Порт 50054. Chat и GetChatHistory — Auth: user."""
 
     @_typing.overload
     def __new__(cls, channel: _grpc.Channel) -> _Self: ...
@@ -40,10 +40,15 @@ class SupportServiceStub:
     """
     GetChatHistory: _grpc.UnaryUnaryMultiCallable[_support_pb2.GetChatHistoryRequest, _support_pb2.GetChatHistoryResponse]
     """История чата по заказу, пагинация."""
+    GetOrderTimeline: _grpc.UnaryUnaryMultiCallable[_support_pb2.GetOrderTimelineRequest, _support_pb2.GetOrderTimelineResponse]
+    """Auth: service. Проекция смен статуса заказа из событий order.status_changed, старые первыми.
+    Eventual consistency: отстаёт от order-service, пока консьюмер не дочитал очередь;
+    неизвестный заказ — пустой список, не NOT_FOUND.
+    """
 
 @_typing.type_check_only
 class SupportServiceAsyncStub(SupportServiceStub):
-    """Чат покупателя с поддержкой по заказу. Порт 50054. Все методы — Auth: user."""
+    """Чат покупателя с поддержкой по заказу. Порт 50054. Chat и GetChatHistory — Auth: user."""
 
     def __init__(self, channel: _aio.Channel) -> None: ...
     Chat: _aio.StreamStreamMultiCallable[_support_pb2.ChatRequest, _support_pb2.ChatResponse]  # type: ignore[assignment]
@@ -53,9 +58,14 @@ class SupportServiceAsyncStub(SupportServiceStub):
     """
     GetChatHistory: _aio.UnaryUnaryMultiCallable[_support_pb2.GetChatHistoryRequest, _support_pb2.GetChatHistoryResponse]  # type: ignore[assignment]
     """История чата по заказу, пагинация."""
+    GetOrderTimeline: _aio.UnaryUnaryMultiCallable[_support_pb2.GetOrderTimelineRequest, _support_pb2.GetOrderTimelineResponse]  # type: ignore[assignment]
+    """Auth: service. Проекция смен статуса заказа из событий order.status_changed, старые первыми.
+    Eventual consistency: отстаёт от order-service, пока консьюмер не дочитал очередь;
+    неизвестный заказ — пустой список, не NOT_FOUND.
+    """
 
 class SupportServiceServicer(metaclass=_abc_1.ABCMeta):
-    """Чат покупателя с поддержкой по заказу. Порт 50054. Все методы — Auth: user."""
+    """Чат покупателя с поддержкой по заказу. Порт 50054. Chat и GetChatHistory — Auth: user."""
 
     @_abc_1.abstractmethod
     def Chat(
@@ -75,5 +85,16 @@ class SupportServiceServicer(metaclass=_abc_1.ABCMeta):
         context: _ServicerContext,
     ) -> _typing.Union[_support_pb2.GetChatHistoryResponse, _abc.Awaitable[_support_pb2.GetChatHistoryResponse]]:
         """История чата по заказу, пагинация."""
+
+    @_abc_1.abstractmethod
+    def GetOrderTimeline(
+        self,
+        request: _support_pb2.GetOrderTimelineRequest,
+        context: _ServicerContext,
+    ) -> _typing.Union[_support_pb2.GetOrderTimelineResponse, _abc.Awaitable[_support_pb2.GetOrderTimelineResponse]]:
+        """Auth: service. Проекция смен статуса заказа из событий order.status_changed, старые первыми.
+        Eventual consistency: отстаёт от order-service, пока консьюмер не дочитал очередь;
+        неизвестный заказ — пустой список, не NOT_FOUND.
+        """
 
 def add_SupportServiceServicer_to_server(servicer: SupportServiceServicer, server: _typing.Union[_grpc.Server, _aio.Server]) -> None: ...

@@ -116,7 +116,7 @@ async def test_methods_without_handler_are_logged_at_start() -> None:
     warnings = {e["service"]: e["methods"] for e in logs if e["log_level"] == "warning"}
     assert warnings == {
         "catalog.v1.CatalogService": ["SearchProducts"],
-        "support.v1.SupportService": ["GetChatHistory"],
+        "support.v1.SupportService": ["GetChatHistory", "GetOrderTimeline"],
     }
 
 

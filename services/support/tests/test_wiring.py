@@ -22,6 +22,9 @@ import json
 from nuke_di import DI
 from support_service import main
 
+# Консьюмер приходит в serve параметром @worker: без inject его в DI.graph() нет
+DI.inject(main.serve)
+
 print(json.dumps({
     "clients": [node.name for node in DI.graph().nodes],
     "handlers": sorted(signature.full_method for signature in main.HANDLERS),
@@ -40,14 +43,17 @@ def test_main_builds_client_tree() -> None:
     assert {
         "ChatHub",
         "ChatRepository",
+        "OrderStatusConsumer",
         "OrdersClient",
         "Postgres",
+        "Rabbit",
         "SupportSettings",
         "Sessions",
     } <= set(wiring["clients"])
     assert wiring["handlers"] == [
         "/support.v1.SupportService/Chat",
         "/support.v1.SupportService/GetChatHistory",
+        "/support.v1.SupportService/GetOrderTimeline",
     ]
     assert wiring["interceptors"] == [
         "RequestIdInterceptor",
@@ -70,7 +76,10 @@ def test_handlers_inject_clients() -> None:
     assert {ChatHub, ChatRepository, OrdersClient, Postgres, SupportSettings} <= resolved
 
 
-def test_every_handler_has_user_policy() -> None:
+def test_every_handler_has_policy() -> None:
     methods = {s.full_method for s in GRPC_HANDLERS if s.package == "support.v1"}
     assert methods == set(AUTH_POLICIES)
-    assert set(AUTH_POLICIES.values()) == {AuthPolicy.USER}
+    assert AUTH_POLICIES["/support.v1.SupportService/GetOrderTimeline"] is AuthPolicy.SERVICE
+    assert {
+        policy for method, policy in AUTH_POLICIES.items() if not method.endswith("Timeline")
+    } == {AuthPolicy.USER}

@@ -1,14 +1,17 @@
-"""Репозиторий чатов, клиент к order-service и входящий стрим Chat в памяти для unit-тестов."""
+"""Репозиторий, клиент к order-service, стрим Chat и сообщения RabbitMQ в памяти для unit-тестов."""
 
 import asyncio
-from collections.abc import Iterable
+import uuid
+from collections.abc import AsyncIterator, Iterable
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
+from types import TracebackType
+from unittest.mock import AsyncMock, MagicMock
 
 from orders.v1 import orders_pb2
 from stand_core.grpc import current_user
 from support.v1 import support_pb2
-from support_service.models import Author, Chat, ChatMessage
+from support_service.models import Author, Chat, ChatMessage, OrderEvent
 from support_service.orders_client import OrdersClient
 from support_service.repository import ChatRepository
 
@@ -31,6 +34,9 @@ class FakeRepository(ChatRepository):
         self.messages: list[ChatMessage] = []
         self.client_ids: dict[str, str | None] = {}
         self.read: set[str] = set()
+        self.events: dict[str, list[OrderEvent]] = {}
+        # Исключение, которое бросит следующая запись проекции (например, Postgres недоступен)
+        self.event_error: Exception | None = None
         self._clock = EPOCH
 
     async def connect(self) -> None:
@@ -67,6 +73,16 @@ class FakeRepository(ChatRepository):
             return False
         self.read.add(message_id)
         return True
+
+    async def record_order_event(self, event: OrderEvent) -> None:
+        if self.event_error is not None:
+            raise self.event_error
+        events = self.events.setdefault(event.order_id, [])
+        if all(known.status != event.status for known in events):
+            events.append(event)
+
+    async def order_events(self, order_id: str) -> list[OrderEvent]:
+        return sorted(self.events.get(order_id, []), key=lambda event: event.changed_at)
 
 
 class FakeOrders(OrdersClient):
@@ -122,3 +138,60 @@ class RequestStream:
         if item is None:
             raise StopAsyncIteration
         return item
+
+
+def rabbit_message(body: bytes, correlation_id: str | None = "req-from-header") -> MagicMock:
+    """Входящее сообщение aio-pika: тело, заголовки и ack/nack."""
+    incoming = MagicMock()
+    incoming.body = body
+    incoming.message_id = uuid.uuid4().hex
+    incoming.correlation_id = correlation_id
+    incoming.ack = AsyncMock()
+    incoming.nack = AsyncMock()
+    return incoming
+
+
+class FakeQueueIterator:
+    """`queue.iterator()`: асинхронный контекст и итератор по заранее заданным сообщениям."""
+
+    def __init__(self, messages: list[MagicMock]) -> None:
+        self.messages = messages
+
+    async def __aenter__(self) -> AsyncIterator[MagicMock]:
+        return self._iterate()
+
+    async def __aexit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc: BaseException | None,
+        tb: TracebackType | None,
+    ) -> None:
+        pass
+
+    async def _iterate(self) -> AsyncIterator[MagicMock]:
+        for incoming in self.messages:
+            yield incoming
+
+
+def fake_rabbit(*messages: MagicMock, open_errors: int = 0) -> MagicMock:
+    """Rabbit: первые `open_errors` вызовов `open()` падают, потом очередь отдаёт `messages`."""
+    queue = MagicMock()
+    queue.name = "support.order_events"
+    queue.bind = AsyncMock()
+    queue.iterator.side_effect = lambda: FakeQueueIterator(list(messages))
+    channel = MagicMock()
+    channel.set_qos = AsyncMock()
+    channel.declare_exchange = AsyncMock()
+    channel.declare_queue = AsyncMock(return_value=queue)
+    rabbit = MagicMock()
+    rabbit.channel = channel
+    attempts = iter(range(open_errors))
+
+    async def open_() -> None:
+        if next(attempts, None) is not None:
+            raise ConnectionError("broker is down")
+
+    rabbit.open = AsyncMock(side_effect=open_)
+    rabbit.disconnect = AsyncMock()
+    rabbit.queue = queue
+    return rabbit

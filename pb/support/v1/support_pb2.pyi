@@ -40,6 +40,34 @@ AUTHOR_AGENT: Author.ValueType  # 2
 AUTHOR_BOT: Author.ValueType  # 3
 Global___Author: _TypeAlias = Author  # noqa: Y015
 
+class _OrderStatus:
+    ValueType = _typing.NewType("ValueType", _builtins.int)
+    V: _TypeAlias = ValueType  # noqa: Y015
+
+class _OrderStatusEnumTypeWrapper(_enum_type_wrapper._EnumTypeWrapper[_OrderStatus.ValueType], _builtins.type):
+    DESCRIPTOR: _descriptor.EnumDescriptor
+    ORDER_STATUS_UNSPECIFIED: _OrderStatus.ValueType  # 0
+    ORDER_STATUS_CREATED: _OrderStatus.ValueType  # 1
+    ORDER_STATUS_PAID: _OrderStatus.ValueType  # 2
+    ORDER_STATUS_ASSEMBLING: _OrderStatus.ValueType  # 3
+    ORDER_STATUS_HANDED_TO_COURIER: _OrderStatus.ValueType  # 4
+    ORDER_STATUS_DELIVERED: _OrderStatus.ValueType  # 5
+    ORDER_STATUS_CANCELLED: _OrderStatus.ValueType  # 6
+
+class OrderStatus(_OrderStatus, metaclass=_OrderStatusEnumTypeWrapper):
+    """Статусы заказа, которые знает проекция (как orders.v1.OrderStatus). Своя копия, а не импорт:
+    support получает статус строкой из события и не зависит от контракта orders.
+    """
+
+ORDER_STATUS_UNSPECIFIED: OrderStatus.ValueType  # 0
+ORDER_STATUS_CREATED: OrderStatus.ValueType  # 1
+ORDER_STATUS_PAID: OrderStatus.ValueType  # 2
+ORDER_STATUS_ASSEMBLING: OrderStatus.ValueType  # 3
+ORDER_STATUS_HANDED_TO_COURIER: OrderStatus.ValueType  # 4
+ORDER_STATUS_DELIVERED: OrderStatus.ValueType  # 5
+ORDER_STATUS_CANCELLED: OrderStatus.ValueType  # 6
+Global___OrderStatus: _TypeAlias = OrderStatus  # noqa: Y015
+
 @_typing.final
 class ChatMessage(_message.Message):
     DESCRIPTOR: _descriptor.Descriptor
@@ -308,3 +336,67 @@ class GetChatHistoryResponse(_message.Message):
     def WhichOneof(self, oneof_group: _Never) -> None: ...
 
 Global___GetChatHistoryResponse: _TypeAlias = GetChatHistoryResponse  # noqa: Y015
+
+@_typing.final
+class OrderEvent(_message.Message):
+    DESCRIPTOR: _descriptor.Descriptor
+
+    STATUS_FIELD_NUMBER: _builtins.int
+    CHANGED_AT_FIELD_NUMBER: _builtins.int
+    status: Global___OrderStatus.ValueType
+    @_builtins.property
+    def changed_at(self) -> _timestamp_pb2.Timestamp:
+        """Когда order-service сменил статус (из события), а не когда событие дошло до support"""
+
+    def __init__(
+        self,
+        *,
+        status: Global___OrderStatus.ValueType = ...,
+        changed_at: _timestamp_pb2.Timestamp | None = ...,
+    ) -> None: ...
+    _HasFieldArgType: _TypeAlias = _typing.Literal["changed_at", b"changed_at"]  # noqa: Y015
+    def HasField(self, field_name: _HasFieldArgType) -> _builtins.bool: ...
+    _ClearFieldArgType: _TypeAlias = _typing.Literal["changed_at", b"changed_at", "status", b"status"]  # noqa: Y015
+    def ClearField(self, field_name: _ClearFieldArgType) -> None: ...
+    def WhichOneof(self, oneof_group: _Never) -> None: ...
+
+Global___OrderEvent: _TypeAlias = OrderEvent  # noqa: Y015
+
+@_typing.final
+class GetOrderTimelineRequest(_message.Message):
+    DESCRIPTOR: _descriptor.Descriptor
+
+    ORDER_ID_FIELD_NUMBER: _builtins.int
+    order_id: _builtins.str
+    def __init__(
+        self,
+        *,
+        order_id: _builtins.str = ...,
+    ) -> None: ...
+    _HasFieldArgType: _TypeAlias = _Never  # noqa: Y015
+    def HasField(self, field_name: _HasFieldArgType) -> _builtins.bool: ...
+    _ClearFieldArgType: _TypeAlias = _typing.Literal["order_id", b"order_id"]  # noqa: Y015
+    def ClearField(self, field_name: _ClearFieldArgType) -> None: ...
+    def WhichOneof(self, oneof_group: _Never) -> None: ...
+
+Global___GetOrderTimelineRequest: _TypeAlias = GetOrderTimelineRequest  # noqa: Y015
+
+@_typing.final
+class GetOrderTimelineResponse(_message.Message):
+    DESCRIPTOR: _descriptor.Descriptor
+
+    EVENTS_FIELD_NUMBER: _builtins.int
+    @_builtins.property
+    def events(self) -> _containers.RepeatedCompositeFieldContainer[Global___OrderEvent]: ...
+    def __init__(
+        self,
+        *,
+        events: _abc.Iterable[Global___OrderEvent] | None = ...,
+    ) -> None: ...
+    _HasFieldArgType: _TypeAlias = _Never  # noqa: Y015
+    def HasField(self, field_name: _HasFieldArgType) -> _builtins.bool: ...
+    _ClearFieldArgType: _TypeAlias = _typing.Literal["events", b"events"]  # noqa: Y015
+    def ClearField(self, field_name: _ClearFieldArgType) -> None: ...
+    def WhichOneof(self, oneof_group: _Never) -> None: ...
+
+Global___GetOrderTimelineResponse: _TypeAlias = GetOrderTimelineResponse  # noqa: Y015

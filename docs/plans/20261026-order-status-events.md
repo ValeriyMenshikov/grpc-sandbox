@@ -414,7 +414,7 @@ git commit -m "feat: письмо о доставке заказа и стату
 
 Неизвестный статус в событии: `nack(requeue=False)` + лог; проекция хранит статус строкой, но значение проверяется по `support.v1.OrderStatus`, чтобы мусор не оседал в таблице.
 
-- [ ] **Step 1: Написать падающие тесты**
+- [x] **Step 1: Написать падающие тесты**
 
 ```python
 async def test_projection_is_idempotent(repository: SupportRepository) -> None:
@@ -440,21 +440,21 @@ async def test_chat_works_without_broker(...) -> None:
     ...
 ```
 
-- [ ] **Step 2: Запустить тесты, убедиться, что падают**
+- [x] **Step 2: Запустить тесты, убедиться, что падают**
 
 Run: `uv run pytest services/support -v`
 Expected: FAIL — нет `record_order_event` / `OrderStatusConsumer`.
 
-- [ ] **Step 3: `make gen` и реализация**
+- [x] **Step 3: `make gen` и реализация**
 
 Run: `make gen`, затем схема, модель, репозиторий, консьюмер с backoff, хэндлер, `AUTH_POLICIES` (`GetOrderTimeline` → `AuthPolicy.SERVICE`), `handlers/__init__.py`, `main.py`, compose.
 
-- [ ] **Step 4: Запустить тесты и проверки**
+- [x] **Step 4: Запустить тесты и проверки**
 
 Run: `uv run pytest services/support -v && make check`
 Expected: PASS.
 
-- [ ] **Step 5: Коммит**
+- [x] **Step 5: Коммит**
 
 ```bash
 git add protos pb services/support docker-compose.yml .env.example

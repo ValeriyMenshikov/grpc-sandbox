@@ -187,6 +187,13 @@ services:
       ORDERS_ADDR: ${ORDERS_ADDR:-orders:50053}
       SUPPORT_AGENT_DELAY_MS: ${SUPPORT_AGENT_DELAY_MS:-1500}
       SUPPORT_IDLE_TIMEOUT_S: ${SUPPORT_IDLE_TIMEOUT_S:-60}
+      RABBITMQ_URL: ${RABBITMQ_URL:-amqp://stand:stand@rabbitmq:5672/}
+      EVENTS_EXCHANGE: ${EVENTS_EXCHANGE:-stand.events}
+      ORDER_EVENTS_QUEUE: ${ORDER_EVENTS_QUEUE:-support.order_events}
+      ORDER_EVENTS_DEAD_LETTER_EXCHANGE: ${ORDER_EVENTS_DEAD_LETTER_EXCHANGE:-support.order_events.dead}
+      ORDER_EVENTS_DEAD_LETTER_QUEUE: ${ORDER_EVENTS_DEAD_LETTER_QUEUE:-support.order_events.dead}
+      ORDER_EVENTS_RECONNECT_DELAY_S: ${ORDER_EVENTS_RECONNECT_DELAY_S:-1}
+      ORDER_EVENTS_RECONNECT_MAX_DELAY_S: ${ORDER_EVENTS_RECONNECT_MAX_DELAY_S:-30}
     ports:
       - "${SUPPORT_PORT:-50054}:50054"
     depends_on:
@@ -198,6 +205,10 @@ services:
         condition: service_healthy
       # Только порядок старта: остановленный позже orders даёт боту «Не удалось получить статус»
       orders:
+        condition: service_healthy
+      # Только порядок старта: без брокера support работает, консьюмер проекции статусов
+      # заказа переподключается в фоне, а проекция отстаёт
+      rabbitmq:
         condition: service_healthy
     healthcheck: *grpc-healthcheck
 

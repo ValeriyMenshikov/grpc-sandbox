@@ -64,3 +64,9 @@ def fast_agent(monkeypatch: pytest.MonkeyPatch) -> None:
 @pytest.fixture
 def short_idle(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("SUPPORT_IDLE_TIMEOUT_S", "0.2")
+
+
+@pytest.fixture
+def fast_reconnect(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("ORDER_EVENTS_RECONNECT_DELAY_S", "0.01")
+    monkeypatch.setenv("ORDER_EVENTS_RECONNECT_MAX_DELAY_S", "0.02")

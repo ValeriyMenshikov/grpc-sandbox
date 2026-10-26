@@ -26,15 +26,17 @@ from common.v1 import money_pb2 as common_dot_v1_dot_money__pb2
 from google.protobuf import timestamp_pb2 as google_dot_protobuf_dot_timestamp__pb2
 
 
-DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\x18support/v1/support.proto\x12\nsupport.v1\x1a\x15\x63ommon/v1/money.proto\x1a\x1fgoogle/protobuf/timestamp.proto\"\x83\x01\n\x0b\x43hatMessage\x12\x12\n\nmessage_id\x18\x01 \x01(\t\x12\"\n\x06\x61uthor\x18\x02 \x01(\x0e\x32\x12.support.v1.Author\x12\x0c\n\x04text\x18\x03 \x01(\t\x12.\n\ncreated_at\x18\x04 \x01(\x0b\x32\x1a.google.protobuf.Timestamp\"\x18\n\x04Join\x12\x10\n\x08order_id\x18\x01 \x01(\t\"8\n\rClientMessage\x12\x19\n\x11\x63lient_message_id\x18\x01 \x01(\t\x12\x0c\n\x04text\x18\x02 \x01(\t\"\x1a\n\x04Read\x12\x12\n\nmessage_id\x18\x01 \x01(\t\"\x8a\x01\n\x0b\x43hatRequest\x12 \n\x04join\x18\x01 \x01(\x0b\x32\x10.support.v1.JoinH\x00\x12,\n\x07message\x18\x02 \x01(\x0b\x32\x19.support.v1.ClientMessageH\x00\x12 \n\x04read\x18\x03 \x01(\x0b\x32\x10.support.v1.ReadH\x00\x42\t\n\x07payload\"I\n\x06Joined\x12\x0f\n\x07\x63hat_id\x18\x01 \x01(\t\x12.\n\rlast_messages\x18\x02 \x03(\x0b\x32\x17.support.v1.ChatMessage\"d\n\x03\x41\x63k\x12\x19\n\x11\x63lient_message_id\x18\x01 \x01(\t\x12\x12\n\nmessage_id\x18\x02 \x01(\t\x12.\n\ncreated_at\x18\x03 \x01(\x0b\x32\x1a.google.protobuf.Timestamp\"\r\n\x0b\x41gentTyping\"\xbc\x01\n\x0c\x43hatResponse\x12$\n\x06joined\x18\x01 \x01(\x0b\x32\x12.support.v1.JoinedH\x00\x12\x1e\n\x03\x61\x63k\x18\x02 \x01(\x0b\x32\x0f.support.v1.AckH\x00\x12*\n\x07message\x18\x03 \x01(\x0b\x32\x17.support.v1.ChatMessageH\x00\x12/\n\x0c\x61gent_typing\x18\x04 \x01(\x0b\x32\x17.support.v1.AgentTypingH\x00\x42\t\n\x07payload\"T\n\x15GetChatHistoryRequest\x12\x10\n\x08order_id\x18\x01 \x01(\t\x12)\n\npagination\x18\x02 \x01(\x0b\x32\x15.common.v1.Pagination\"m\n\x16GetChatHistoryResponse\x12\x0f\n\x07\x63hat_id\x18\x01 \x01(\t\x12)\n\x08messages\x18\x02 \x03(\x0b\x32\x17.support.v1.ChatMessage\x12\x17\n\x0fnext_page_token\x18\x03 \x01(\t*W\n\x06\x41uthor\x12\x16\n\x12\x41UTHOR_UNSPECIFIED\x10\x00\x12\x13\n\x0f\x41UTHOR_CUSTOMER\x10\x01\x12\x10\n\x0c\x41UTHOR_AGENT\x10\x02\x12\x0e\n\nAUTHOR_BOT\x10\x03\x32\xa8\x01\n\x0eSupportService\x12=\n\x04\x43hat\x12\x17.support.v1.ChatRequest\x1a\x18.support.v1.ChatResponse(\x01\x30\x01\x12W\n\x0eGetChatHistory\x12!.support.v1.GetChatHistoryRequest\x1a\".support.v1.GetChatHistoryResponseb\x06proto3')
+DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\x18support/v1/support.proto\x12\nsupport.v1\x1a\x15\x63ommon/v1/money.proto\x1a\x1fgoogle/protobuf/timestamp.proto\"\x83\x01\n\x0b\x43hatMessage\x12\x12\n\nmessage_id\x18\x01 \x01(\t\x12\"\n\x06\x61uthor\x18\x02 \x01(\x0e\x32\x12.support.v1.Author\x12\x0c\n\x04text\x18\x03 \x01(\t\x12.\n\ncreated_at\x18\x04 \x01(\x0b\x32\x1a.google.protobuf.Timestamp\"\x18\n\x04Join\x12\x10\n\x08order_id\x18\x01 \x01(\t\"8\n\rClientMessage\x12\x19\n\x11\x63lient_message_id\x18\x01 \x01(\t\x12\x0c\n\x04text\x18\x02 \x01(\t\"\x1a\n\x04Read\x12\x12\n\nmessage_id\x18\x01 \x01(\t\"\x8a\x01\n\x0b\x43hatRequest\x12 \n\x04join\x18\x01 \x01(\x0b\x32\x10.support.v1.JoinH\x00\x12,\n\x07message\x18\x02 \x01(\x0b\x32\x19.support.v1.ClientMessageH\x00\x12 \n\x04read\x18\x03 \x01(\x0b\x32\x10.support.v1.ReadH\x00\x42\t\n\x07payload\"I\n\x06Joined\x12\x0f\n\x07\x63hat_id\x18\x01 \x01(\t\x12.\n\rlast_messages\x18\x02 \x03(\x0b\x32\x17.support.v1.ChatMessage\"d\n\x03\x41\x63k\x12\x19\n\x11\x63lient_message_id\x18\x01 \x01(\t\x12\x12\n\nmessage_id\x18\x02 \x01(\t\x12.\n\ncreated_at\x18\x03 \x01(\x0b\x32\x1a.google.protobuf.Timestamp\"\r\n\x0b\x41gentTyping\"\xbc\x01\n\x0c\x43hatResponse\x12$\n\x06joined\x18\x01 \x01(\x0b\x32\x12.support.v1.JoinedH\x00\x12\x1e\n\x03\x61\x63k\x18\x02 \x01(\x0b\x32\x0f.support.v1.AckH\x00\x12*\n\x07message\x18\x03 \x01(\x0b\x32\x17.support.v1.ChatMessageH\x00\x12/\n\x0c\x61gent_typing\x18\x04 \x01(\x0b\x32\x17.support.v1.AgentTypingH\x00\x42\t\n\x07payload\"T\n\x15GetChatHistoryRequest\x12\x10\n\x08order_id\x18\x01 \x01(\t\x12)\n\npagination\x18\x02 \x01(\x0b\x32\x15.common.v1.Pagination\"m\n\x16GetChatHistoryResponse\x12\x0f\n\x07\x63hat_id\x18\x01 \x01(\t\x12)\n\x08messages\x18\x02 \x03(\x0b\x32\x17.support.v1.ChatMessage\x12\x17\n\x0fnext_page_token\x18\x03 \x01(\t\"e\n\nOrderEvent\x12\'\n\x06status\x18\x01 \x01(\x0e\x32\x17.support.v1.OrderStatus\x12.\n\nchanged_at\x18\x02 \x01(\x0b\x32\x1a.google.protobuf.Timestamp\"+\n\x17GetOrderTimelineRequest\x12\x10\n\x08order_id\x18\x01 \x01(\t\"B\n\x18GetOrderTimelineResponse\x12&\n\x06\x65vents\x18\x01 \x03(\x0b\x32\x16.support.v1.OrderEvent*W\n\x06\x41uthor\x12\x16\n\x12\x41UTHOR_UNSPECIFIED\x10\x00\x12\x13\n\x0f\x41UTHOR_CUSTOMER\x10\x01\x12\x10\n\x0c\x41UTHOR_AGENT\x10\x02\x12\x0e\n\nAUTHOR_BOT\x10\x03*\xd5\x01\n\x0bOrderStatus\x12\x1c\n\x18ORDER_STATUS_UNSPECIFIED\x10\x00\x12\x18\n\x14ORDER_STATUS_CREATED\x10\x01\x12\x15\n\x11ORDER_STATUS_PAID\x10\x02\x12\x1b\n\x17ORDER_STATUS_ASSEMBLING\x10\x03\x12\"\n\x1eORDER_STATUS_HANDED_TO_COURIER\x10\x04\x12\x1a\n\x16ORDER_STATUS_DELIVERED\x10\x05\x12\x1a\n\x16ORDER_STATUS_CANCELLED\x10\x06\x32\x87\x02\n\x0eSupportService\x12=\n\x04\x43hat\x12\x17.support.v1.ChatRequest\x1a\x18.support.v1.ChatResponse(\x01\x30\x01\x12W\n\x0eGetChatHistory\x12!.support.v1.GetChatHistoryRequest\x1a\".support.v1.GetChatHistoryResponse\x12]\n\x10GetOrderTimeline\x12#.support.v1.GetOrderTimelineRequest\x1a$.support.v1.GetOrderTimelineResponseb\x06proto3')
 
 _globals = globals()
 _builder.BuildMessageAndEnumDescriptors(DESCRIPTOR, _globals)
 _builder.BuildTopDescriptorsAndMessages(DESCRIPTOR, 'support.v1.support_pb2', _globals)
 if not _descriptor._USE_C_DESCRIPTORS:
   DESCRIPTOR._loaded_options = None
-  _globals['_AUTHOR']._serialized_start=1063
-  _globals['_AUTHOR']._serialized_end=1150
+  _globals['_AUTHOR']._serialized_start=1279
+  _globals['_AUTHOR']._serialized_end=1366
+  _globals['_ORDERSTATUS']._serialized_start=1369
+  _globals['_ORDERSTATUS']._serialized_end=1582
   _globals['_CHATMESSAGE']._serialized_start=97
   _globals['_CHATMESSAGE']._serialized_end=228
   _globals['_JOIN']._serialized_start=230
@@ -57,6 +59,12 @@ if not _descriptor._USE_C_DESCRIPTORS:
   _globals['_GETCHATHISTORYREQUEST']._serialized_end=950
   _globals['_GETCHATHISTORYRESPONSE']._serialized_start=952
   _globals['_GETCHATHISTORYRESPONSE']._serialized_end=1061
-  _globals['_SUPPORTSERVICE']._serialized_start=1153
-  _globals['_SUPPORTSERVICE']._serialized_end=1321
+  _globals['_ORDEREVENT']._serialized_start=1063
+  _globals['_ORDEREVENT']._serialized_end=1164
+  _globals['_GETORDERTIMELINEREQUEST']._serialized_start=1166
+  _globals['_GETORDERTIMELINEREQUEST']._serialized_end=1209
+  _globals['_GETORDERTIMELINERESPONSE']._serialized_start=1211
+  _globals['_GETORDERTIMELINERESPONSE']._serialized_end=1277
+  _globals['_SUPPORTSERVICE']._serialized_start=1585
+  _globals['_SUPPORTSERVICE']._serialized_end=1848
 # @@protoc_insertion_point(module_scope)

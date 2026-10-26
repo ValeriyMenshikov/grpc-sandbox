@@ -7,11 +7,12 @@
 import os
 import uuid
 from collections.abc import AsyncIterator
+from datetime import UTC, datetime, timedelta
 
 import asyncpg
 import pytest
 from stand_core.clients import Postgres
-from support_service.models import Author
+from support_service.models import Author, OrderEvent
 from support_service.repository import ChatRepository
 from support_service.settings import SupportSettings
 
@@ -93,3 +94,28 @@ async def test_client_message_id_and_read(repository: ChatRepository, postgres: 
     assert row is not None
     assert row["client_message_id"] == "cm-1"
     assert row["read_at"] == first_read is not None
+
+
+def moment(minutes: int = 0) -> datetime:
+    return datetime(2026, 10, 26, 12, 0, tzinfo=UTC) + timedelta(minutes=minutes)
+
+
+async def test_projection_is_idempotent(repository: ChatRepository) -> None:
+    event = OrderEvent(order_id="o-1", status="PAID", changed_at=moment())
+
+    await repository.record_order_event(event)
+    await repository.record_order_event(event)
+
+    assert await repository.order_events("o-1") == [event]
+
+
+async def test_projection_is_ordered_by_changed_at(repository: ChatRepository) -> None:
+    created = OrderEvent("o-1", "CREATED", moment(0))
+    paid = OrderEvent("o-1", "PAID", moment(1))
+    other = OrderEvent("o-2", "CREATED", moment(0))
+    # Очередь не гарантирует порядок между перезапусками: более позднее событие пришло первым
+    for event in (paid, other, created):
+        await repository.record_order_event(event)
+
+    assert await repository.order_events("o-1") == [created, paid]
+    assert await repository.order_events("missing") == []

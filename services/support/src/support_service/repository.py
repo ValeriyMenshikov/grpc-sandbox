@@ -1,4 +1,4 @@
-"""Репозиторий чатов поддержки поверх Postgres (схема `support`, см. schema.sql)."""
+"""Репозиторий чатов поддержки и проекции статусов заказа поверх Postgres (схема `support`)."""
 
 import uuid
 from pathlib import Path
@@ -7,7 +7,7 @@ import asyncpg
 from nuke_di import Client, client_dataclass
 from stand_core.clients import Postgres
 
-from support_service.models import Author, Chat, ChatMessage
+from support_service.models import Author, Chat, ChatMessage, OrderEvent
 
 SCHEMA_PATH = Path(__file__).with_name("schema.sql")
 
@@ -34,6 +34,14 @@ SELECT {_MESSAGE_COLUMNS} FROM (
     SELECT {_MESSAGE_COLUMNS}, seq FROM support.messages
     WHERE chat_id = $1 ORDER BY seq DESC LIMIT $2
 ) AS last ORDER BY seq
+"""
+
+
+# Повторная доставка события (at-least-once) — no-op по первичному ключу (order_id, status)
+_INSERT_ORDER_EVENT = """
+INSERT INTO support.order_events (order_id, status, changed_at)
+VALUES ($1, $2, $3)
+ON CONFLICT (order_id, status) DO NOTHING
 """
 
 
@@ -106,3 +114,25 @@ class ChatRepository(Client):
             message_id,
         )
         return result != "UPDATE 0"
+
+    async def record_order_event(self, event: OrderEvent) -> None:
+        """Строка проекции; такая уже есть (событие доставлено повторно) — ничего не меняется."""
+        await self._postgres.pool.execute(
+            _INSERT_ORDER_EVENT, event.order_id, event.status, event.changed_at
+        )
+
+    async def order_events(self, order_id: str) -> list[OrderEvent]:
+        """Проекция заказа, старые первыми; заказ неизвестен — пустой список."""
+        records = await self._postgres.pool.fetch(
+            "SELECT order_id, status, changed_at FROM support.order_events "
+            "WHERE order_id = $1 ORDER BY changed_at, status",
+            order_id,
+        )
+        return [
+            OrderEvent(
+                order_id=record["order_id"],
+                status=record["status"],
+                changed_at=record["changed_at"],
+            )
+            for record in records
+        ]

@@ -27,3 +27,16 @@ class ChatMessage:
     author: Author
     text: str
     created_at: datetime
+
+
+@dataclass(frozen=True)
+class OrderEvent:
+    """Смена статуса заказа из события `order.status_changed` — строка проекции.
+
+    `status` — строка из события (значение `support.v1.OrderStatus` без префикса), проверяется
+    консьюмером до записи.
+    """
+
+    order_id: str
+    status: str
+    changed_at: datetime

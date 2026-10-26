@@ -26,7 +26,7 @@ if _version_not_supported:
 
 
 class SupportServiceStub:
-    """Чат покупателя с поддержкой по заказу. Порт 50054. Все методы — Auth: user.
+    """Чат покупателя с поддержкой по заказу. Порт 50054. Chat и GetChatHistory — Auth: user.
     """
 
     def __init__(self, channel):
@@ -45,10 +45,15 @@ class SupportServiceStub:
                 request_serializer=support_dot_v1_dot_support__pb2.GetChatHistoryRequest.SerializeToString,
                 response_deserializer=support_dot_v1_dot_support__pb2.GetChatHistoryResponse.FromString,
                 _registered_method=True)
+        self.GetOrderTimeline = channel.unary_unary(
+                '/support.v1.SupportService/GetOrderTimeline',
+                request_serializer=support_dot_v1_dot_support__pb2.GetOrderTimelineRequest.SerializeToString,
+                response_deserializer=support_dot_v1_dot_support__pb2.GetOrderTimelineResponse.FromString,
+                _registered_method=True)
 
 
 class SupportServiceServicer:
-    """Чат покупателя с поддержкой по заказу. Порт 50054. Все методы — Auth: user.
+    """Чат покупателя с поддержкой по заказу. Порт 50054. Chat и GetChatHistory — Auth: user.
     """
 
     def Chat(self, request_iterator, context):
@@ -67,6 +72,15 @@ class SupportServiceServicer:
         context.set_details('Method not implemented!')
         raise NotImplementedError('Method not implemented!')
 
+    def GetOrderTimeline(self, request, context):
+        """Auth: service. Проекция смен статуса заказа из событий order.status_changed, старые первыми.
+        Eventual consistency: отстаёт от order-service, пока консьюмер не дочитал очередь;
+        неизвестный заказ — пустой список, не NOT_FOUND.
+        """
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
 
 def add_SupportServiceServicer_to_server(servicer, server):
     rpc_method_handlers = {
@@ -80,6 +94,11 @@ def add_SupportServiceServicer_to_server(servicer, server):
                     request_deserializer=support_dot_v1_dot_support__pb2.GetChatHistoryRequest.FromString,
                     response_serializer=support_dot_v1_dot_support__pb2.GetChatHistoryResponse.SerializeToString,
             ),
+            'GetOrderTimeline': grpc.unary_unary_rpc_method_handler(
+                    servicer.GetOrderTimeline,
+                    request_deserializer=support_dot_v1_dot_support__pb2.GetOrderTimelineRequest.FromString,
+                    response_serializer=support_dot_v1_dot_support__pb2.GetOrderTimelineResponse.SerializeToString,
+            ),
     }
     generic_handler = grpc.method_handlers_generic_handler(
             'support.v1.SupportService', rpc_method_handlers)
@@ -89,7 +108,7 @@ def add_SupportServiceServicer_to_server(servicer, server):
 
  # This class is part of an EXPERIMENTAL API.
 class SupportService:
-    """Чат покупателя с поддержкой по заказу. Порт 50054. Все методы — Auth: user.
+    """Чат покупателя с поддержкой по заказу. Порт 50054. Chat и GetChatHistory — Auth: user.
     """
 
     @staticmethod
@@ -136,6 +155,33 @@ class SupportService:
             '/support.v1.SupportService/GetChatHistory',
             support_dot_v1_dot_support__pb2.GetChatHistoryRequest.SerializeToString,
             support_dot_v1_dot_support__pb2.GetChatHistoryResponse.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def GetOrderTimeline(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/support.v1.SupportService/GetOrderTimeline',
+            support_dot_v1_dot_support__pb2.GetOrderTimelineRequest.SerializeToString,
+            support_dot_v1_dot_support__pb2.GetOrderTimelineResponse.FromString,
             options,
             channel_credentials,
             insecure,
